@@ -97,7 +97,7 @@ export function BookingSuccessPage() {
             Back to dashboard
           </Link>
           <Link
-            to={`/expert/${expert.id}`}
+            to={`/schedule/${expert.id}`}
             className="flex-1 text-center rounded-full border py-2.5 ds-label hover:bg-secondary transition-colors"
           >
             Book another time
