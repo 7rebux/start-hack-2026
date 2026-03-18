@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useParams, Link, useNavigate } from "react-router-dom"
 import { ArrowLeft } from "lucide-react"
 import expertsData from "../../mock-data/experts.json"
 import companiesData from "../../mock-data/companies.json"
@@ -17,6 +17,7 @@ const fields = fieldsData as Field[]
 
 export function ExpertBookingPage() {
   const { expertId } = useParams<{ expertId: string }>()
+  const navigate = useNavigate()
 
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState({
@@ -74,8 +75,9 @@ export function ExpertBookingPage() {
 
   function handleConfirmBooking() {
     setDialogOpen(false)
-    setSelectedDate(null)
-    setSelectedSlot(null)
+    navigate("/booking-success", {
+      state: { expert, company, date: selectedDate, slot: selectedSlot },
+    })
   }
 
   const selectedDaySlots = selectedDate ? availability[selectedDate]?.slots ?? [] : []
