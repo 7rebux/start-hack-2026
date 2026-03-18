@@ -2,7 +2,9 @@
 
 ## Agent Instructions
 
+- Always use bun and not npm
 - When prompted to modify or create frontend code, use the `brand-review` skill to structure and afterwards review the code for brand compliance.
+- When prompted to create a new feature first read the related files in the `/context` folder and collect necessary knowledge before implementing anything. If there are still open questions, please first ask the user for clarification.
 
 ## About Studyond
 
