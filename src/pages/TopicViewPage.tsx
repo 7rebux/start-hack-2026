@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 import ReactFlow, { Background, Controls, useNodesState, useEdgesState } from "reactflow"
 import "reactflow/dist/style.css"
@@ -37,6 +37,10 @@ function resolveFields(ids: string[]) {
 
 function buildGraph(topic: Topic) {
   const nodeIds = new Set<string>([topic.id])
+  // Maps nodeId/edgeId → owning projectId for project-level graph elements
+  const projectNodeMap = new Map<string, string>()
+  const projectEdgeSet = new Set<string>()
+
   const nodes: object[] = [
     { id: topic.id, type: "topicNode", position: { x: 0, y: 0 }, data: { ...topic, fieldNames: resolveFields(topic.fieldIds) } },
   ]
@@ -85,17 +89,23 @@ function buildGraph(topic: Topic) {
     nodes.push({ id: project.id, type: "projectNode", position: { x: projX, y: -350 }, data: project })
     edges.push({ id: `${topic.id}-${project.id}`, source: topic.id, target: project.id })
 
+    const addProjectEdge = (edgeId: string, source: string, target: string) => {
+      projectEdgeSet.add(edgeId)
+      edges.push({ id: edgeId, source, target })
+    }
+
     // Company
     if (project.companyId) {
       if (!nodeIds.has(project.companyId)) {
         const company = (companiesData as Company[]).find((c) => c.id === project.companyId)
         if (company) {
           nodeIds.add(company.id)
+          projectNodeMap.set(company.id, project.id)
           nodes.push({ id: company.id, type: "companyNode", position: { x: projX - 250, y: -600 }, data: company })
         }
       }
       if (nodeIds.has(project.companyId)) {
-        edges.push({ id: `${project.id}-${project.companyId}`, source: project.id, target: project.companyId })
+        addProjectEdge(`${project.id}-${project.companyId}`, project.id, project.companyId)
       }
     }
 
@@ -105,11 +115,12 @@ function buildGraph(topic: Topic) {
         const university = (universitiesData as University[]).find((u) => u.id === project.universityId)
         if (university) {
           nodeIds.add(university.id)
+          projectNodeMap.set(university.id, project.id)
           nodes.push({ id: university.id, type: "universityNode", position: { x: projX + 250, y: -600 }, data: university })
         }
       }
       if (nodeIds.has(project.universityId)) {
-        edges.push({ id: `${project.id}-${project.universityId}`, source: project.id, target: project.universityId })
+        addProjectEdge(`${project.id}-${project.universityId}`, project.id, project.universityId)
       }
     }
 
@@ -119,11 +130,12 @@ function buildGraph(topic: Topic) {
         const supervisor = (supervisorsData as Supervisor[]).find((s) => s.id === supervisorId)
         if (supervisor) {
           nodeIds.add(supervisor.id)
+          projectNodeMap.set(supervisor.id, project.id)
           nodes.push({ id: supervisor.id, type: "supervisorNode", position: { x: projX - 250, y: -600 - si * 200 }, data: { ...supervisor, fieldNames: resolveFields(supervisor.fieldIds) } })
         }
       }
       if (nodeIds.has(supervisorId)) {
-        edges.push({ id: `${project.id}-${supervisorId}`, source: project.id, target: supervisorId })
+        addProjectEdge(`${project.id}-${supervisorId}`, project.id, supervisorId)
       }
     })
 
@@ -133,11 +145,12 @@ function buildGraph(topic: Topic) {
         const expert = (expertsData as Expert[]).find((e) => e.id === expertId)
         if (expert) {
           nodeIds.add(expert.id)
+          projectNodeMap.set(expert.id, project.id)
           nodes.push({ id: expert.id, type: "expertNode", position: { x: projX + 250, y: -600 - ei * 200 }, data: { ...expert, fieldNames: resolveFields(expert.fieldIds) } })
         }
       }
       if (nodeIds.has(expertId)) {
-        edges.push({ id: `${project.id}-${expertId}`, source: project.id, target: expertId })
+        addProjectEdge(`${project.id}-${expertId}`, project.id, expertId)
       }
     })
 
@@ -146,28 +159,80 @@ function buildGraph(topic: Topic) {
     if (student) {
       if (!nodeIds.has(student.id)) {
         nodeIds.add(student.id)
+        projectNodeMap.set(student.id, project.id)
         nodes.push({ id: student.id, type: "studentNode", position: { x: projX, y: -650 }, data: student })
       }
-      edges.push({ id: `${project.id}-${student.id}`, source: project.id, target: student.id })
+      addProjectEdge(`${project.id}-${student.id}`, project.id, student.id)
       if (nodeIds.has(student.universityId)) {
-        edges.push({ id: `${student.id}-${student.universityId}`, source: student.id, target: student.universityId })
+        addProjectEdge(`${student.id}-${student.universityId}`, student.id, student.universityId)
       }
     }
   })
 
-  return { nodes, edges }
+  return { nodes, edges, projectNodeMap, projectEdgeSet }
 }
 
 function TopicFlow({ topic }: { topic: Topic }) {
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(topic), [topic])
-  const [nodes, , onNodesChange] = useNodesState(initialNodes as never[])
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges as never[])
+  const { nodes: initialNodes, edges: initialEdges, projectNodeMap, projectEdgeSet } = useMemo(() => buildGraph(topic), [topic])
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
+
+  const toggleProject = useCallback((projectId: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) next.delete(projectId)
+      else next.add(projectId)
+      return next
+    })
+  }, [])
+
+  const nodes = useMemo(() =>
+    (initialNodes as Array<{ id: string; type: string; data: object; position: object }>).map((node) => {
+      const owningProject = projectNodeMap.get(node.id)
+      const hidden = owningProject !== undefined && !expandedProjects.has(owningProject)
+      if (node.type === "projectNode") {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            expanded: expandedProjects.has(node.id),
+            onToggle: () => toggleProject(node.id),
+          },
+        }
+      }
+      return { ...node, hidden }
+    }),
+    [initialNodes, projectNodeMap, expandedProjects, toggleProject]
+  )
+
+  const edges = useMemo(() =>
+    (initialEdges as Array<{ id: string; source: string; target: string }>).map((edge) => {
+      const hidden = projectEdgeSet.has(edge.id) && !expandedProjects.has(
+        projectNodeMap.get(edge.target) ?? projectNodeMap.get(edge.source) ?? ""
+      )
+      return { ...edge, hidden }
+    }),
+    [initialEdges, projectEdgeSet, projectNodeMap, expandedProjects]
+  )
+
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState(nodes as never[])
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(edges as never[])
+
+  useEffect(() => {
+    setRfNodes((prev) => {
+      const prevPositions = new Map((prev as Array<{ id: string; position: object }>).map((n) => [n.id, n.position]))
+      return (nodes as Array<{ id: string; position: object }>).map((n) => ({
+        ...n,
+        position: prevPositions.get(n.id) ?? n.position,
+      })) as never[]
+    })
+  }, [nodes, setRfNodes])
+  useEffect(() => { setRfEdges(edges as never[]) }, [edges, setRfEdges])
 
   return (
     <div style={{ width: "100vw", height: "100vh" }}>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={rfNodes}
+        edges={rfEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
