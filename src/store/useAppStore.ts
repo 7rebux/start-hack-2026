@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type AppView = 'onboarding' | 'graph'
-export type SidebarPanel = 'graph' | 'bookmarks' | 'compare'
+export type SidebarPanel = 'graph' | 'bookmarks' | 'compare' | 'search'
 
 interface AppState {
   // Navigation

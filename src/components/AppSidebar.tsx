@@ -1,4 +1,4 @@
-import { Network, Bookmark, Scale } from 'lucide-react'
+import { Network, Bookmark, Scale, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
 import { universityById, programsForUniversity } from '@/data/index'
@@ -73,6 +73,20 @@ export function AppSidebar() {
         >
           <Scale className="size-4 flex-shrink-0" />
           Compare
+        </button>
+
+        <button
+          onClick={() => setCurrentPanel('search')}
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
+            'ds-label',
+            currentPanel === 'search'
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+          )}
+        >
+          <Search className="size-4 flex-shrink-0" />
+          Search
         </button>
       </nav>
 

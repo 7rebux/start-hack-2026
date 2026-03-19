@@ -6,6 +6,7 @@ import { GraphView } from '@/components/graph/GraphView'
 import { TopicDetailPanel } from '@/components/TopicDetailPanel'
 import { SourceDetailPanel } from '@/components/SourceDetailPanel'
 import { ComparePage } from '@/pages/ComparePage'
+import { SearchPage } from '@/pages/SearchPage'
 import { topicById, companyById, supervisorById, fieldById } from '@/data/index'
 import { Badge } from '@/components/ui/badge'
 
@@ -135,6 +136,18 @@ export function GraphPage() {
               className="h-full w-full"
             >
               <ComparePage />
+            </motion.div>
+          )}
+          {currentPanel === 'search' && (
+            <motion.div
+              key="search"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              <SearchPage />
             </motion.div>
           )}
         </AnimatePresence>
