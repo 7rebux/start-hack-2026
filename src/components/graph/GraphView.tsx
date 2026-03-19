@@ -83,7 +83,7 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
   const nodes: Node[] = []
   const edges: Edge[] = []
 
-  const atFieldMax = selectedFieldIds.length >= 3
+  const atFieldMax = selectedFieldIds.length >= 1
 
   // ── Center node ─────────────────────────────────────────────────────────────
   nodes.push({
@@ -100,6 +100,9 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
     const angleDeg = FIELD_START_DEG + i * (360 / fieldCount)
     const pos = ringPosition(R1, angleDeg)
     const isFieldSelected = selectedFieldIds.includes(field.id)
+
+    // Hide other fields if one is already selected
+    if (selectedFieldIds.length > 0 && !isFieldSelected) return
 
     nodes.push({
       id: `field-${field.id}`,
@@ -147,10 +150,11 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
       data: { sourceId: src.id, label, sublabel, isAcademic, atMax: false },
       draggable: true,
     })
-    // Edge: center → source (dimmed until selected)
+    // Edge: field → source (dimmed until selected)
+    const selectedFieldNodeId = `field-${selectedFieldIds[0]}`
     edges.push({
-      id: `e-center-source-${src.id}`,
-      source: 'center',
+      id: `e-field-source-${src.id}`,
+      source: selectedFieldNodeId,
       target: `source-${src.id}`,
       type: 'floating',
       data: { selected: selectedSourceIds.includes(src.id), dimmed: !selectedSourceIds.includes(src.id), isAcademic },
@@ -299,7 +303,7 @@ function GraphCanvas() {
 
         {/* Contextual hint */}
         <p className="ds-caption rounded-lg bg-background/80 px-3 py-2 text-muted-foreground backdrop-blur-sm border border-border">
-          {graphLevel === 1 && 'Select up to 3 fields of interest to begin'}
+          {graphLevel === 1 && 'Select a field of interest to begin'}
           {graphLevel === 2 && 'Click to select a source · double-click for details'}
           {graphLevel === 3 && 'Click a topic to preview · double-click a source for full profile'}
         </p>

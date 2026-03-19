@@ -1,5 +1,6 @@
 import { Handle, Position } from "reactflow"
 import type { Topic } from "../../types/topic"
+import { useActiveNodeId } from "../../pages/TopicViewPage"
 
 const employmentTypeLabel: Record<string, string> = {
   internship: "Internship",
@@ -21,15 +22,16 @@ const degreeLabel: Record<string, string> = {
 }
 
 interface TopicNodeProps {
-  data: Topic & { fieldNames: string[] }
+  data: Topic & { fieldNames: string[]; expanded: boolean; onToggle: () => void }
 }
 
 export default function TopicNode({ data }: TopicNodeProps) {
+  const activeId = useActiveNodeId()
+  const isActive = activeId === data.id
   const isJob = data.type === "job"
-  const showEmployment = data.employment === "yes" || data.employment === "open"
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-5 w-[420px]">
+    <div className={`bg-white rounded-xl shadow-lg p-5 w-[420px] border-2 transition-colors ${isActive ? "border-gray-500" : "border-gray-200"}`}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
 
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -45,31 +47,10 @@ export default function TopicNode({ data }: TopicNodeProps) {
         </span>
       </div>
 
-      <p className="text-sm text-gray-600 leading-relaxed mb-4">{data.description}</p>
-
-      {showEmployment && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {data.employment === "open" && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
-              Employment possible
-            </span>
-          )}
-          {data.employment === "yes" && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-              Employment included
-            </span>
-          )}
-          {data.employmentType && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {employmentTypeLabel[data.employmentType]}
-            </span>
-          )}
-          {data.workplaceType && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-              {workplaceLabel[data.workplaceType]}
-            </span>
-          )}
-        </div>
+      {(data.employmentType || data.workplaceType) && (
+        <p className="text-xs text-gray-400 mb-3">
+          {[data.employmentType && employmentTypeLabel[data.employmentType], data.workplaceType && workplaceLabel[data.workplaceType]].filter(Boolean).join(" · ")}
+        </p>
       )}
 
       <div className="flex flex-wrap gap-1.5 mb-3">
@@ -83,7 +64,7 @@ export default function TopicNode({ data }: TopicNodeProps) {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {data.fieldNames.map((name) => (
           <span
             key={name}
@@ -93,6 +74,13 @@ export default function TopicNode({ data }: TopicNodeProps) {
           </span>
         ))}
       </div>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); data.onToggle(); }}
+        className="w-full text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-1"
+      >
+        {data.expanded ? "▲ Hide Details" : "▼ Show Details"}
+      </button>
 
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
     </div>

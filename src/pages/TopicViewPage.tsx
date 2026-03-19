@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import ReactFlow, {
   Background,
@@ -7,7 +7,10 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   ConnectionLineType,
+  type Node,
 } from "reactflow";
+import { AnimatePresence } from "framer-motion";
+import { TopicViewDetailPanel } from "../components/TopicViewDetailPanel";
 import "reactflow/dist/style.css";
 import ELK from "elkjs/lib/elk.bundled.js";
 import topicsData from "../../mock-data/topics.json";
@@ -34,6 +37,9 @@ import type {
   Student,
 } from "../types/entities";
 
+export const ActiveNodeContext = createContext<string | null>(null);
+export function useActiveNodeId() { return useContext(ActiveNodeContext); }
+
 const nodeTypes = {
   topicNode: TopicNode,
   expertNode: ExpertNode,
@@ -47,10 +53,10 @@ const nodeTypes = {
 const NODE_DIMENSIONS: Record<string, { width: number; height: number }> = {
   topicNode: { width: 420, height: 200 },
   projectNode: { width: 320, height: 160 },
-  expertNode: { width: 320, height: 200 },
+  expertNode: { width: 320, height: 160 },
   supervisorNode: { width: 320, height: 180 },
-  companyNode: { width: 320, height: 150 },
-  universityNode: { width: 320, height: 150 },
+  companyNode: { width: 320, height: 140 },
+  universityNode: { width: 320, height: 130 },
   studentNode: { width: 320, height: 180 },
 };
 
@@ -107,6 +113,8 @@ function buildGraph(topic: Topic) {
   const nodeIds = new Set<string>([topic.id]);
   const projectNodeMap = new Map<string, string>();
   const projectEdgeSet = new Set<string>();
+  const topicChildIds = new Set<string>();
+  const topicEdgeSet = new Set<string>();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nodes: any[] = [
@@ -126,17 +134,16 @@ function buildGraph(topic: Topic) {
     );
     if (company) {
       nodeIds.add(company.id);
+      topicChildIds.add(company.id);
       nodes.push({
         id: company.id,
         type: "companyNode",
         position: { x: 0, y: 0 },
         data: company,
       });
-      edges.push({
-        id: `${topic.id}-${company.id}`,
-        source: topic.id,
-        target: company.id,
-      });
+      const edgeId = `${topic.id}-${company.id}`;
+      topicEdgeSet.add(edgeId);
+      edges.push({ id: edgeId, source: topic.id, target: company.id });
     }
   }
 
@@ -146,17 +153,16 @@ function buildGraph(topic: Topic) {
     );
     if (university) {
       nodeIds.add(university.id);
+      topicChildIds.add(university.id);
       nodes.push({
         id: university.id,
         type: "universityNode",
         position: { x: 0, y: 0 },
         data: university,
       });
-      edges.push({
-        id: `${topic.id}-${university.id}`,
-        source: topic.id,
-        target: university.id,
-      });
+      const edgeId = `${topic.id}-${university.id}`;
+      topicEdgeSet.add(edgeId);
+      edges.push({ id: edgeId, source: topic.id, target: university.id });
     }
   }
 
@@ -166,17 +172,16 @@ function buildGraph(topic: Topic) {
     );
     if (supervisor) {
       nodeIds.add(supervisor.id);
+      topicChildIds.add(supervisor.id);
       nodes.push({
         id: supervisor.id,
         type: "supervisorNode",
         position: { x: 0, y: 0 },
         data: { ...supervisor, fieldNames: resolveFields(supervisor.fieldIds) },
       });
-      edges.push({
-        id: `${topic.id}-${supervisor.id}`,
-        source: topic.id,
-        target: supervisor.id,
-      });
+      const edgeId = `${topic.id}-${supervisor.id}`;
+      topicEdgeSet.add(edgeId);
+      edges.push({ id: edgeId, source: topic.id, target: supervisor.id });
     }
   });
 
@@ -184,17 +189,16 @@ function buildGraph(topic: Topic) {
     const expert = (expertsData as Expert[]).find((e) => e.id === expertId);
     if (expert) {
       nodeIds.add(expert.id);
+      topicChildIds.add(expert.id);
       nodes.push({
         id: expert.id,
         type: "expertNode",
         position: { x: 0, y: 0 },
         data: { ...expert, fieldNames: resolveFields(expert.fieldIds) },
       });
-      edges.push({
-        id: `${topic.id}-${expert.id}`,
-        source: topic.id,
-        target: expert.id,
-      });
+      const edgeId = `${topic.id}-${expert.id}`;
+      topicEdgeSet.add(edgeId);
+      edges.push({ id: edgeId, source: topic.id, target: expert.id });
     }
   });
 
@@ -203,14 +207,17 @@ function buildGraph(topic: Topic) {
   );
   projects.forEach((project) => {
     nodeIds.add(project.id);
+    topicChildIds.add(project.id);
     nodes.push({
       id: project.id,
       type: "projectNode",
       position: { x: 0, y: 0 },
       data: project,
     });
+    const topicProjectEdgeId = `${topic.id}-${project.id}`;
+    topicEdgeSet.add(topicProjectEdgeId);
     edges.push({
-      id: `${topic.id}-${project.id}`,
+      id: topicProjectEdgeId,
       source: topic.id,
       target: project.id,
     });
@@ -342,7 +349,7 @@ function buildGraph(topic: Topic) {
     }
   });
 
-  return { nodes, edges, projectNodeMap, projectEdgeSet };
+  return { nodes, edges, projectNodeMap, projectEdgeSet, topicChildIds, topicEdgeSet };
 }
 
 function TopicFlow({ topic }: { topic: Topic }) {
@@ -351,14 +358,31 @@ function TopicFlow({ topic }: { topic: Topic }) {
     edges: allEdges,
     projectNodeMap,
     projectEdgeSet,
+    topicChildIds,
+    topicEdgeSet,
   } = useMemo(() => buildGraph(topic), [topic]);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     new Set(),
   );
+  const [topicExpanded, setTopicExpanded] = useState(false);
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rfInstance, setRfInstance] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rfInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [activeNode, setActiveNode] = useState<{ type: string; data: any } | null>(null);
+  // Ref so runLayout can read current node positions without being a dependency
+  const rfNodesRef = useRef(rfNodes);
+  useEffect(() => { rfNodesRef.current = rfNodes; }, [rfNodes]);
+  const isFirstLayout = useRef(true);
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setActiveNode((prev) =>
+      prev && prev.data.id === node.data.id ? null : { type: node.type!, data: node.data },
+    );
+  }, []);
 
   const toggleProject = useCallback((projectId: string) => {
     setExpandedProjects((prev) => {
@@ -371,9 +395,19 @@ function TopicFlow({ topic }: { topic: Topic }) {
 
   const { visibleNodes, visibleEdges } = useMemo(() => {
     const visibleNodes = allNodes.map((node) => {
-      const owningProject = projectNodeMap.get(node.id);
-      const hidden =
-        owningProject !== undefined && !expandedProjects.has(owningProject);
+      if (node.type === "topicNode") {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            expanded: topicExpanded,
+            onToggle: () => setTopicExpanded((prev) => !prev),
+          },
+        };
+      }
+      if (topicChildIds.has(node.id) && !topicExpanded) {
+        return { ...node, hidden: true };
+      }
       if (node.type === "projectNode") {
         return {
           ...node,
@@ -384,10 +418,16 @@ function TopicFlow({ topic }: { topic: Topic }) {
           },
         };
       }
+      const owningProject = projectNodeMap.get(node.id);
+      const hidden =
+        owningProject !== undefined && !expandedProjects.has(owningProject);
       return { ...node, hidden };
     });
 
     const visibleEdges = allEdges.map((edge) => {
+      if (topicEdgeSet.has(edge.id) && !topicExpanded) {
+        return { ...edge, hidden: true };
+      }
       const hidden =
         projectEdgeSet.has(edge.id) &&
         !expandedProjects.has(
@@ -404,55 +444,100 @@ function TopicFlow({ topic }: { topic: Topic }) {
     allEdges,
     projectNodeMap,
     projectEdgeSet,
+    topicChildIds,
+    topicEdgeSet,
+    topicExpanded,
     expandedProjects,
     toggleProject,
   ]);
 
-  const runLayout = useCallback(() => {
-    applyElkLayout(visibleNodes, visibleEdges).then((layoutedNodes) => {
-      setRfNodes(layoutedNodes as never[]);
+  const runLayout = useCallback((fitAfter = false) => {
+    const first = isFirstLayout.current;
+    applyElkLayout(visibleNodes, visibleEdges).then((layoutedNodes: any[]) => {
+      let finalNodes = layoutedNodes;
+
+      if (!first) {
+        // Map of node IDs that are currently visible on screen → their positions
+        const currentPositions = new Map(
+          rfNodesRef.current
+            .filter((n) => !n.hidden)
+            .map((n) => [n.id, n.position]),
+        );
+
+        // Compute offset so newly-appearing nodes are placed relative to
+        // where the topic card currently sits (not ELK's origin).
+        const currentTopicPos = currentPositions.get(topic.id);
+        const elkTopicPos = layoutedNodes.find((n) => n.id === topic.id)?.position;
+        const dx = currentTopicPos && elkTopicPos ? currentTopicPos.x - elkTopicPos.x : 0;
+        const dy = currentTopicPos && elkTopicPos ? currentTopicPos.y - elkTopicPos.y : 0;
+
+        finalNodes = layoutedNodes.map((n) => {
+          // Already on screen → keep exact position (no jump)
+          if (currentPositions.has(n.id)) {
+            return { ...n, position: currentPositions.get(n.id) };
+          }
+          // Newly revealed → use ELK position shifted by the topic delta
+          return { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } };
+        });
+      }
+
+      setRfNodes(finalNodes as never[]);
       setRfEdges(visibleEdges as never[]);
+      if (fitAfter || first) {
+        isFirstLayout.current = false;
+        setTimeout(
+          () => rfInstanceRef.current?.fitView({ padding: 0.5, maxZoom: 0.7, duration: 300 }),
+          50,
+        );
+      }
     });
-  }, [visibleNodes, visibleEdges, setRfNodes, setRfEdges]);
+  }, [visibleNodes, visibleEdges, setRfNodes, setRfEdges, topic.id]);
 
   // Re-run ELK layout whenever visible nodes/edges change
   useEffect(() => {
-    runLayout();
+    runLayout(false);
   }, [runLayout]);
 
-  // Fit view after layout updates
-  useEffect(() => {
-    if (rfInstance && rfNodes.length > 0) {
-      setTimeout(() => rfInstance.fitView({ padding: 0.1, duration: 300 }), 50);
-    }
-  }, [rfNodes, rfInstance]);
-
   return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <ReactFlow
-        nodes={rfNodes}
-        edges={rfEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        onInit={setRfInstance}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        defaultEdgeOptions={{ type: "step" }}
-        connectionLineType={ConnectionLineType.SmoothStep}
-      >
-        <Background />
-        <Controls />
-        <Panel position="top-right">
-          <button
-            onClick={runLayout}
-            className="bg-white border border-gray-200 rounded-lg shadow px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Auto-layout
-          </button>
-        </Panel>
-      </ReactFlow>
-    </div>
+    <ActiveNodeContext.Provider value={activeNode?.data.id ?? null}>
+    <>
+      <div style={{ width: "100vw", height: "100vh" }}>
+        <ReactFlow
+          nodes={rfNodes}
+          edges={rfEdges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          onInit={(instance) => { rfInstanceRef.current = instance; setRfInstance(instance); }}
+          nodesConnectable={false}
+          elementsSelectable={false}
+          onNodeClick={onNodeClick}
+          onPaneClick={() => setActiveNode(null)}
+          defaultEdgeOptions={{ type: "step" }}
+          connectionLineType={ConnectionLineType.SmoothStep}
+        >
+          <Background />
+          <Controls />
+          <Panel position="top-right">
+            <button
+              onClick={() => runLayout(true)}
+              className="bg-white border border-gray-200 rounded-lg shadow px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors z-50"
+            >
+              Auto-layout
+            </button>
+          </Panel>
+        </ReactFlow>
+      </div>
+      <AnimatePresence>
+        {activeNode && (
+          <TopicViewDetailPanel
+            node={activeNode}
+            onClose={() => setActiveNode(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
+    </ActiveNodeContext.Provider>
   );
 }
 
