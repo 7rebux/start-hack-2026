@@ -18,3 +18,19 @@ export interface University {
   domains: string[]
   about: string | null
 }
+
+export interface Project {
+  id: string
+  title: string
+  description: string | null
+  motivation: string | null
+  state: "proposed" | "applied" | "agreed" | "in_progress" | "completed" | "withdrawn" | "rejected"
+  studentId: string
+  topicId: string | null
+  companyId: string | null
+  universityId: string | null
+  supervisorIds: string[]
+  expertIds: string[]
+  createdAt: string
+  updatedAt: string
+}

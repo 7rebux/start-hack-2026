@@ -8,14 +8,16 @@ import supervisorsData from "../../mock-data/supervisors.json"
 import universitiesData from "../../mock-data/universities.json"
 import companiesData from "../../mock-data/companies.json"
 import fieldsData from "../../mock-data/fields.json"
+import projectsData from "../../mock-data/projects.json"
 import TopicNode from "../components/nodes/TopicNode"
 import ExpertNode from "../components/nodes/ExpertNode"
 import SupervisorNode from "../components/nodes/SupervisorNode"
 import UniversityNode from "../components/nodes/UniversityNode"
 import CompanyNode from "../components/nodes/CompanyNode"
+import ProjectNode from "../components/nodes/ProjectNode"
 import type { Topic } from "../types/topic"
 import type { Expert, Company } from "../types/booking"
-import type { Supervisor, University } from "../types/entities"
+import type { Supervisor, University, Project } from "../types/entities"
 
 const nodeTypes = {
   topicNode: TopicNode,
@@ -23,6 +25,7 @@ const nodeTypes = {
   supervisorNode: SupervisorNode,
   universityNode: UniversityNode,
   companyNode: CompanyNode,
+  projectNode: ProjectNode,
 }
 
 function resolveFields(ids: string[]) {
@@ -30,6 +33,7 @@ function resolveFields(ids: string[]) {
 }
 
 function buildGraph(topic: Topic) {
+  const nodeIds = new Set<string>([topic.id])
   const nodes: object[] = [
     { id: topic.id, type: "topicNode", position: { x: 0, y: 0 }, data: { ...topic, fieldNames: resolveFields(topic.fieldIds) } },
   ]
@@ -38,6 +42,7 @@ function buildGraph(topic: Topic) {
   if (topic.companyId) {
     const company = (companiesData as Company[]).find((c) => c.id === topic.companyId)
     if (company) {
+      nodeIds.add(company.id)
       nodes.push({ id: company.id, type: "companyNode", position: { x: -550, y: 0 }, data: company })
       edges.push({ id: `${topic.id}-${company.id}`, source: topic.id, target: company.id })
     }
@@ -46,6 +51,7 @@ function buildGraph(topic: Topic) {
   if (topic.universityId) {
     const university = (universitiesData as University[]).find((u) => u.id === topic.universityId)
     if (university) {
+      nodeIds.add(university.id)
       nodes.push({ id: university.id, type: "universityNode", position: { x: -550, y: 0 }, data: university })
       edges.push({ id: `${topic.id}-${university.id}`, source: topic.id, target: university.id })
     }
@@ -54,6 +60,7 @@ function buildGraph(topic: Topic) {
   topic.supervisorIds.forEach((supervisorId, i) => {
     const supervisor = (supervisorsData as Supervisor[]).find((s) => s.id === supervisorId)
     if (supervisor) {
+      nodeIds.add(supervisor.id)
       nodes.push({ id: supervisor.id, type: "supervisorNode", position: { x: -250, y: 250 + i * 200 }, data: { ...supervisor, fieldNames: resolveFields(supervisor.fieldIds) } })
       edges.push({ id: `${topic.id}-${supervisor.id}`, source: topic.id, target: supervisor.id })
     }
@@ -62,9 +69,74 @@ function buildGraph(topic: Topic) {
   topic.expertIds.forEach((expertId, i) => {
     const expert = (expertsData as Expert[]).find((e) => e.id === expertId)
     if (expert) {
+      nodeIds.add(expert.id)
       nodes.push({ id: expert.id, type: "expertNode", position: { x: 350, y: 250 + i * 200 }, data: { ...expert, fieldNames: resolveFields(expert.fieldIds) } })
       edges.push({ id: `${topic.id}-${expert.id}`, source: topic.id, target: expert.id })
     }
+  })
+
+  const projects = (projectsData as Project[]).filter((p) => p.topicId === topic.id)
+  projects.forEach((project, i) => {
+    const projX = i * 400 - (projects.length - 1) * 200
+    nodeIds.add(project.id)
+    nodes.push({ id: project.id, type: "projectNode", position: { x: projX, y: -350 }, data: project })
+    edges.push({ id: `${topic.id}-${project.id}`, source: topic.id, target: project.id })
+
+    // Company
+    if (project.companyId) {
+      if (!nodeIds.has(project.companyId)) {
+        const company = (companiesData as Company[]).find((c) => c.id === project.companyId)
+        if (company) {
+          nodeIds.add(company.id)
+          nodes.push({ id: company.id, type: "companyNode", position: { x: projX - 250, y: -600 }, data: company })
+        }
+      }
+      if (nodeIds.has(project.companyId)) {
+        edges.push({ id: `${project.id}-${project.companyId}`, source: project.id, target: project.companyId })
+      }
+    }
+
+    // University
+    if (project.universityId) {
+      if (!nodeIds.has(project.universityId)) {
+        const university = (universitiesData as University[]).find((u) => u.id === project.universityId)
+        if (university) {
+          nodeIds.add(university.id)
+          nodes.push({ id: university.id, type: "universityNode", position: { x: projX + 250, y: -600 }, data: university })
+        }
+      }
+      if (nodeIds.has(project.universityId)) {
+        edges.push({ id: `${project.id}-${project.universityId}`, source: project.id, target: project.universityId })
+      }
+    }
+
+    // Supervisors
+    project.supervisorIds.forEach((supervisorId, si) => {
+      if (!nodeIds.has(supervisorId)) {
+        const supervisor = (supervisorsData as Supervisor[]).find((s) => s.id === supervisorId)
+        if (supervisor) {
+          nodeIds.add(supervisor.id)
+          nodes.push({ id: supervisor.id, type: "supervisorNode", position: { x: projX - 250, y: -600 - si * 200 }, data: { ...supervisor, fieldNames: resolveFields(supervisor.fieldIds) } })
+        }
+      }
+      if (nodeIds.has(supervisorId)) {
+        edges.push({ id: `${project.id}-${supervisorId}`, source: project.id, target: supervisorId })
+      }
+    })
+
+    // Experts
+    project.expertIds.forEach((expertId, ei) => {
+      if (!nodeIds.has(expertId)) {
+        const expert = (expertsData as Expert[]).find((e) => e.id === expertId)
+        if (expert) {
+          nodeIds.add(expert.id)
+          nodes.push({ id: expert.id, type: "expertNode", position: { x: projX + 250, y: -600 - ei * 200 }, data: { ...expert, fieldNames: resolveFields(expert.fieldIds) } })
+        }
+      }
+      if (nodeIds.has(expertId)) {
+        edges.push({ id: `${project.id}-${expertId}`, source: project.id, target: expertId })
+      }
+    })
   })
 
   return { nodes, edges }
