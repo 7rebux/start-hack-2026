@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { supervisorById, companyById } from '@/data/index'
 
 export type AppView = 'onboarding' | 'graph'
 export type Pathway = 'academic' | 'industry'
@@ -21,9 +22,6 @@ interface AppState {
   // Topic detail / bookmarks
   activeTopicId: string | null
   bookmarkedTopicIds: string[]
-
-  // Graph reveal level (how many columns are visible)
-  graphLevelVisible: 1 | 2 | 3 | 4
 
   // Actions
   setUniversityId: (id: string) => void
@@ -52,8 +50,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTopicId: null,
   bookmarkedTopicIds: [],
 
-  graphLevelVisible: 1,
-
   setUniversityId: (id) => set({ selectedUniversityId: id, selectedProgramId: null }),
 
   setProgramId: (id) => set({ selectedProgramId: id }),
@@ -66,7 +62,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedPathways: [],
       selectedSourceIds: [],
       activeTopicId: null,
-      graphLevelVisible: 1,
     }),
 
   goToOnboarding: () => set({ currentView: 'onboarding' }),
@@ -79,35 +74,59 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (isSelected) {
       next = selectedFieldIds.filter(f => f !== id)
     } else {
-      if (selectedFieldIds.length >= 3) return // enforced max; caller handles shake
+      if (selectedFieldIds.length >= 3) return // max 3, ignore
       next = [...selectedFieldIds, id]
     }
 
-    const graphLevelVisible: 1 | 2 | 3 | 4 = next.length > 0 ? 2 : 1
-    set({
-      selectedFieldIds: next,
-      graphLevelVisible,
-      // Reset downstream selections when fields change
-      selectedPathways: [],
-      selectedSourceIds: [],
-      activeTopicId: null,
-    })
+    if (next.length === 0) {
+      // All fields deselected — full reset downstream
+      set({
+        selectedFieldIds: next,
+        selectedPathways: [],
+        selectedSourceIds: [],
+        activeTopicId: null,
+      })
+    } else {
+      // Fields changed — keep pathways but reset sources (they may be stale)
+      set({
+        selectedFieldIds: next,
+        selectedSourceIds: [],
+        activeTopicId: null,
+      })
+    }
   },
 
   togglePathway: (p) => {
-    const { selectedPathways } = get()
+    const { selectedPathways, selectedSourceIds } = get()
     const isSelected = selectedPathways.includes(p)
     const next = isSelected
       ? selectedPathways.filter(x => x !== p)
       : [...selectedPathways, p]
 
-    const graphLevelVisible: 1 | 2 | 3 | 4 = next.length > 0 ? 3 : 2
-    set({
-      selectedPathways: next,
-      graphLevelVisible,
-      selectedSourceIds: [],
-      activeTopicId: null,
-    })
+    // When a pathway is removed, filter out source IDs that belong only to that pathway
+    let filteredSources = selectedSourceIds
+    if (isSelected) {
+      filteredSources = selectedSourceIds.filter(sid => {
+        const isSupervisor = !!supervisorById[sid]
+        const isCompany = !!companyById[sid]
+        if (p === 'academic' && isSupervisor) {
+          // Removing academic — keep this source only if industry is still selected
+          return next.includes('industry')
+        }
+        if (p === 'industry' && isCompany) {
+          // Removing industry — keep this source only if academic is still selected
+          return next.includes('academic')
+        }
+        return true
+      })
+    }
+
+    if (next.length === 0) {
+      // All pathways deselected — reset sources too
+      set({ selectedPathways: next, selectedSourceIds: [], activeTopicId: null })
+    } else {
+      set({ selectedPathways: next, selectedSourceIds: filteredSources, activeTopicId: null })
+    }
   },
 
   toggleSource: (id) => {
@@ -118,16 +137,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (isSelected) {
       next = selectedSourceIds.filter(s => s !== id)
     } else {
-      if (selectedSourceIds.length >= 3) return
+      if (selectedSourceIds.length >= 3) return // max 3, ignore
       next = [...selectedSourceIds, id]
     }
 
-    const graphLevelVisible: 1 | 2 | 3 | 4 = next.length > 0 ? 4 : 3
-    set({
-      selectedSourceIds: next,
-      graphLevelVisible,
-      activeTopicId: null,
-    })
+    set({ selectedSourceIds: next, activeTopicId: null })
   },
 
   setActiveTopic: (id) => set({ activeTopicId: id }),
@@ -144,3 +158,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCurrentPanel: (panel) => set({ currentPanel: panel }),
 }))
+
+// Pure derived selector — use this instead of storing graphLevelVisible
+export function deriveGraphLevel(state: Pick<AppState, 'selectedFieldIds' | 'selectedPathways' | 'selectedSourceIds'>): 1 | 2 | 3 | 4 {
+  if (state.selectedSourceIds.length > 0) return 4
+  if (state.selectedPathways.length > 0) return 3
+  if (state.selectedFieldIds.length > 0) return 2
+  return 1
+}

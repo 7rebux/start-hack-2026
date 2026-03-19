@@ -1,7 +1,17 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { GraduationCap, Building2, Bookmark, BookmarkCheck } from 'lucide-react'
-import { useAppStore } from '@/store/useAppStore'
+import { useEffect, useCallback, useRef } from 'react'
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
+  type Node,
+  type Edge,
+} from '@xyflow/react'
+
+import { useAppStore, deriveGraphLevel } from '@/store/useAppStore'
 import {
   fields,
   supervisorsForFields,
@@ -11,113 +21,140 @@ import {
   supervisorById,
   degreeLabel,
 } from '@/data/index'
-import { GraphNode, PathwayNode, nodeVariants } from './GraphNode'
-import { GraphEdges } from './GraphEdges'
-import type { NodePosition } from './GraphEdges'
-import { cn } from '@/lib/utils'
 
-const NODE_HEIGHT = 68
-const NODE_GAP = 10
-const COL_WIDTH = 200
-const COL_GAP = 120
-const CANVAS_PADDING_X = 48
-const CANVAS_PADDING_Y = 48
+import { CenterNode } from './nodes/CenterNode'
+import { FieldNode } from './nodes/FieldNode'
+import { PathwayNode } from './nodes/PathwayNode'
+import { SourceNode } from './nodes/SourceNode'
+import { TopicNode } from './nodes/TopicNode'
+import { FloatingEdge } from './edges/FloatingEdge'
 
-function computeColumnX(colIndex: number): number {
-  return CANVAS_PADDING_X + colIndex * (COL_WIDTH + COL_GAP) + COL_WIDTH / 2
+const nodeTypes = {
+  center: CenterNode,
+  field: FieldNode,
+  pathway: PathwayNode,
+  source: SourceNode,
+  topic: TopicNode,
 }
 
-function computeNodePositions(
-  nodeIds: string[],
-  colIndex: number,
-  canvasHeight: number
-): Record<string, NodePosition> {
-  const totalH = nodeIds.length * NODE_HEIGHT + Math.max(0, nodeIds.length - 1) * NODE_GAP
-  const startY = Math.max(CANVAS_PADDING_Y, (canvasHeight - totalH) / 2)
-  const cx = computeColumnX(colIndex)
-  const result: Record<string, NodePosition> = {}
-  nodeIds.forEach((id, i) => {
-    result[id] = {
-      id,
-      x: cx,
-      y: startY + i * (NODE_HEIGHT + NODE_GAP) + NODE_HEIGHT / 2,
-    }
-  })
-  return result
+const edgeTypes = {
+  floating: FloatingEdge,
 }
 
-const columnTransition = { duration: 0.35, ease: 'easeOut' as const }
-const columnInitial = { opacity: 0, x: 40 }
-const columnAnimate = { opacity: 1, x: 0 }
-const columnExit = { opacity: 0, x: -20, transition: { duration: 0.2 } }
+// ─── Layout constants ────────────────────────────────────────────────────────
+const R1 = 320  // fields ring radius
+const R2 = 540  // pathway ring radius
+const R3 = 780  // sources ring radius
+const R4 = 1040 // topics ring radius
 
-interface GraphColumnProps {
-  title: string
-  hint?: string
-  children: React.ReactNode
+function toRad(deg: number) { return deg * (Math.PI / 180) }
+
+function ringPosition(radius: number, angleDeg: number) {
+  return {
+    x: Math.round(radius * Math.cos(toRad(angleDeg))),
+    y: Math.round(radius * Math.sin(toRad(angleDeg))),
+  }
 }
 
-function GraphColumn({ title, hint, children }: GraphColumnProps) {
-  return (
-    <motion.div
-      initial={columnInitial}
-      animate={columnAnimate}
-      exit={columnExit}
-      transition={columnTransition}
-      className="flex flex-col gap-3"
-    >
-      <div className="mb-1">
-        <p className="ds-label text-foreground">{title}</p>
-        {hint && <p className="ds-caption text-muted-foreground mt-0.5">{hint}</p>}
-      </div>
-      <motion.div
-        initial="hidden"
-        animate="visible"
-        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04 } } }}
-        className="flex flex-col gap-2.5"
-      >
-        {children}
-      </motion.div>
-    </motion.div>
+function spreadAngles(count: number, centerDeg: number, spreadDeg: number): number[] {
+  if (count === 1) return [centerDeg]
+  return Array.from({ length: count }, (_, i) =>
+    centerDeg - spreadDeg / 2 + (i / (count - 1)) * spreadDeg
   )
 }
 
-export function GraphView() {
-  const {
-    selectedFieldIds,
-    selectedPathways,
-    selectedSourceIds,
-    activeTopicId,
-    bookmarkedTopicIds,
-    graphLevelVisible,
-    toggleField,
-    togglePathway,
-    toggleSource,
-    setActiveTopic,
-    toggleBookmark,
-  } = useAppStore()
+// ─── Node/edge builders ───────────────────────────────────────────────────────
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerHeight, setContainerHeight] = useState(600)
-  const [shakeFieldId, setShakeFieldId] = useState<string | null>(null)
+interface GraphState {
+  selectedFieldIds: string[]
+  selectedPathways: string[]
+  selectedSourceIds: string[]
+  graphLevel: number
+}
 
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) {
-        setContainerHeight(entry.contentRect.height)
-      }
+function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] } {
+  const { selectedFieldIds, selectedPathways, selectedSourceIds, graphLevel } = state
+  const nodes: Node[] = []
+  const edges: Edge[] = []
+
+  const atFieldMax = selectedFieldIds.length >= 3
+  const atSourceMax = selectedSourceIds.length >= 3
+
+  // ── Center node ─────────────────────────────────────────────────────────────
+  nodes.push({
+    id: 'center',
+    type: 'center',
+    position: { x: -80, y: -30 }, // center offset for node size
+    data: {},
+    draggable: true,
+  })
+
+  // ── Ring 1: Fields ──────────────────────────────────────────────────────────
+  const fieldCount = fields.length // 20
+  fields.forEach((field, i) => {
+    const angleDeg = i * (360 / fieldCount) - 90 // start from top
+    const pos = ringPosition(R1, angleDeg)
+
+    nodes.push({
+      id: `field-${field.id}`,
+      type: 'field',
+      position: { x: pos.x - 65, y: pos.y - 18 }, // center the ~130px node
+      data: {
+        fieldId: field.id,
+        label: field.name,
+        atMax: atFieldMax,
+      },
+      draggable: true,
     })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
-  // Derived data
+    // Edge: field → center (always present, opacity driven by selected state in edge data)
+    const isFieldSelected = selectedFieldIds.includes(field.id)
+    edges.push({
+      id: `e-field-center-${field.id}`,
+      source: `field-${field.id}`,
+      target: 'center',
+      type: 'floating',
+      data: { selected: isFieldSelected, dimmed: !isFieldSelected },
+    } as Edge)
+  })
+
+  if (graphLevel < 2) return { nodes, edges }
+
+  // ── Ring 2: Pathways ────────────────────────────────────────────────────────
+  const pathwayDefs = [
+    { pathway: 'academic', label: 'Academic', description: 'Supervised research', angleDeg: -150 },
+    { pathway: 'industry', label: 'Industry', description: 'Company-driven thesis', angleDeg: -30 },
+  ]
+
+  pathwayDefs.forEach(({ pathway, label, description, angleDeg }) => {
+    const pos = ringPosition(R2, angleDeg)
+    nodes.push({
+      id: `pathway-${pathway}`,
+      type: 'pathway',
+      position: { x: pos.x - 85, y: pos.y - 55 }, // center ~170×110px node
+      data: { pathway, label, description },
+      draggable: true,
+    })
+
+    // Edge from each selected field → pathway node
+    selectedFieldIds.forEach(fid => {
+      edges.push({
+        id: `e-field-pathway-${fid}-${pathway}`,
+        source: `field-${fid}`,
+        target: `pathway-${pathway}`,
+        type: 'floating',
+        data: { selected: selectedPathways.includes(pathway), dimmed: !selectedPathways.includes(pathway) },
+      } as Edge)
+    })
+  })
+
+  if (graphLevel < 3) return { nodes, edges }
+
+  // ── Ring 3: Sources ─────────────────────────────────────────────────────────
   const sourceNodes =
     selectedPathways.includes('academic') && selectedPathways.includes('industry')
       ? [
-          ...supervisorsForFields(selectedFieldIds).slice(0, 8),
+          ...supervisorsForFields(selectedFieldIds).slice(0, 7),
           ...companiesForFields(selectedFieldIds).slice(0, 6),
         ]
       : selectedPathways.includes('academic')
@@ -126,362 +163,199 @@ export function GraphView() {
       ? companiesForFields(selectedFieldIds).slice(0, 10)
       : []
 
-  const topicNodes = topicsForSourcesAndFields(
+  const sourceAngles = spreadAngles(
+    Math.max(sourceNodes.length, 1),
+    -90,
+    Math.min(sourceNodes.length * 22, 280)
+  )
+
+  sourceNodes.forEach((src, i) => {
+    const isSupervisor = !!supervisorById[src.id]
+    const label = isSupervisor
+      ? `${supervisorById[src.id].title} ${supervisorById[src.id].lastName}`
+      : companyById[src.id]?.name ?? src.id
+    const sublabel = isSupervisor
+      ? supervisorById[src.id].researchInterests.slice(0, 2).join(', ')
+      : companyById[src.id]?.domains.slice(0, 2).join(', ')
+
+    const pos = ringPosition(R3, sourceAngles[i])
+    nodes.push({
+      id: `source-${src.id}`,
+      type: 'source',
+      position: { x: pos.x - 80, y: pos.y - 28 }, // center ~160×56px node
+      data: {
+        sourceId: src.id,
+        label,
+        sublabel,
+        isAcademic: isSupervisor,
+        atMax: atSourceMax,
+      },
+      draggable: true,
+    })
+
+    // Edge: relevant pathway → source
+    const pathway = isSupervisor ? 'academic' : 'industry'
+    if (selectedPathways.includes(pathway)) {
+      edges.push({
+        id: `e-pathway-source-${pathway}-${src.id}`,
+        source: `pathway-${pathway}`,
+        target: `source-${src.id}`,
+        type: 'floating',
+        data: { selected: selectedSourceIds.includes(src.id), dimmed: !selectedSourceIds.includes(src.id) },
+      } as Edge)
+    }
+  })
+
+  if (graphLevel < 4) return { nodes, edges }
+
+  // ── Ring 4: Topics ───────────────────────────────────────────────────────────
+  const topicList = topicsForSourcesAndFields(
     selectedSourceIds,
     selectedFieldIds,
-    selectedPathways
+    selectedPathways as ('academic' | 'industry')[]
   ).slice(0, 15)
 
-  // Compute node positions for SVG edges
-  const canvasHeight = Math.max(
-    containerHeight,
-    CANVAS_PADDING_Y * 2 + fields.length * (NODE_HEIGHT + NODE_GAP)
+  const topicAngles = spreadAngles(
+    Math.max(topicList.length, 1),
+    -90,
+    Math.min(topicList.length * 18, 300)
   )
 
-  const fieldPositions = computeNodePositions(
-    fields.map(f => f.id),
-    0,
-    canvasHeight
-  )
-  const pathwayPositions = computeNodePositions(['academic', 'industry'], 1, canvasHeight)
-  const sourcePositions = computeNodePositions(
-    sourceNodes.map(s => s.id),
-    2,
-    canvasHeight
-  )
-  const topicPositions = computeNodePositions(
-    topicNodes.map(t => t.id),
-    3,
-    canvasHeight
-  )
+  topicList.forEach((topic, i) => {
+    const sourceName = topic.companyId
+      ? companyById[topic.companyId]?.name ?? ''
+      : topic.supervisorIds[0]
+      ? `${supervisorById[topic.supervisorIds[0]]?.title} ${supervisorById[topic.supervisorIds[0]]?.lastName}`
+      : ''
+    const degreeTags = topic.degrees.map(degreeLabel).join(' / ')
 
-  const allPositions: Record<string, NodePosition> = {
-    ...fieldPositions,
-    ...pathwayPositions,
-    ...sourcePositions,
-    ...topicPositions,
-  }
+    const pos = ringPosition(R4, topicAngles[i])
+    nodes.push({
+      id: `topic-${topic.id}`,
+      type: 'topic',
+      position: { x: pos.x - 85, y: pos.y - 35 }, // center ~170×70px node
+      data: {
+        topicId: topic.id,
+        label: topic.title,
+        sourceName,
+        degreeTags,
+      },
+      draggable: true,
+    })
 
-  // Build edges
-  const edges: { sourceId: string; targetId: string }[] = []
-  // L1 → L2
-  if (graphLevelVisible >= 2) {
-    for (const fid of selectedFieldIds) {
-      for (const p of selectedPathways) {
-        edges.push({ sourceId: fid, targetId: p })
+    // Edges: selected source → topics it owns
+    for (const sid of selectedSourceIds) {
+      if (topic.supervisorIds.includes(sid) || topic.companyId === sid) {
+        edges.push({
+          id: `e-source-topic-${sid}-${topic.id}`,
+          source: `source-${sid}`,
+          target: `topic-${topic.id}`,
+          type: 'floating',
+          data: { selected: true, dimmed: false },
+        } as Edge)
       }
     }
-  }
-  // L2 → L3
-  if (graphLevelVisible >= 3) {
-    for (const p of selectedPathways) {
-      for (const src of sourceNodes) {
-        const isAcademic = supervisorById[src.id] !== undefined
-        const isIndustry = companyById[src.id] !== undefined
-        if (p === 'academic' && isAcademic && selectedSourceIds.includes(src.id)) {
-          edges.push({ sourceId: p, targetId: src.id })
-        }
-        if (p === 'industry' && isIndustry && selectedSourceIds.includes(src.id)) {
-          edges.push({ sourceId: p, targetId: src.id })
-        }
-      }
-    }
-  }
-  // L3 → L4
-  if (graphLevelVisible >= 4) {
-    for (const topic of topicNodes) {
-      for (const sid of selectedSourceIds) {
-        if (
-          topic.supervisorIds.includes(sid) ||
-          topic.companyId === sid
-        ) {
-          edges.push({ sourceId: sid, targetId: topic.id })
-        }
-      }
-    }
-  }
+  })
 
-  const numColumns = graphLevelVisible
-  const canvasWidth =
-    CANVAS_PADDING_X * 2 + numColumns * COL_WIDTH + (numColumns - 1) * COL_GAP
+  return { nodes, edges }
+}
 
-  const handleFieldClick = useCallback(
-    (fieldId: string) => {
-      if (!selectedFieldIds.includes(fieldId) && selectedFieldIds.length >= 3) {
-        setShakeFieldId(fieldId)
-        setTimeout(() => setShakeFieldId(null), 500)
-        return
-      }
-      toggleField(fieldId)
-    },
-    [selectedFieldIds, toggleField]
-  )
+// ─── Inner component (needs ReactFlow context) ────────────────────────────────
+
+function GraphCanvas() {
+  const store = useAppStore()
+  const { fitView } = useReactFlow()
+
+  const graphLevel = deriveGraphLevel(store)
+  const prevLevel = useRef(graphLevel)
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+
+  // Rebuild graph whenever relevant state changes
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildGraphElements({
+      selectedFieldIds: store.selectedFieldIds,
+      selectedPathways: store.selectedPathways,
+      selectedSourceIds: store.selectedSourceIds,
+      graphLevel,
+    })
+    setNodes(newNodes)
+    setEdges(newEdges)
+
+    // Fit view when level increases (new ring appears)
+    if (graphLevel > prevLevel.current) {
+      setTimeout(() => fitView({ padding: 0.18, duration: 700 }), 80)
+    }
+    prevLevel.current = graphLevel
+  }, [
+    store.selectedFieldIds,
+    store.selectedPathways,
+    store.selectedSourceIds,
+    graphLevel,
+    setNodes,
+    setEdges,
+    fitView,
+  ])
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    // Node clicks are handled inside each custom node component via the store
+    // No additional logic needed here — keeps nodes self-contained
+    void node
+  }, [])
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-auto">
-      {/* SVG edge layer */}
-      <GraphEdges
+    <div className="h-full w-full">
+      <ReactFlow
+        nodes={nodes}
         edges={edges}
-        positions={allPositions}
-        canvasHeight={canvasHeight}
-        canvasWidth={Math.max(canvasWidth, 1400)}
-      />
-
-      {/* Column layout */}
-      <div
-        className="relative flex items-start gap-0 px-12 py-12"
-        style={{ minWidth: `${Math.max(canvasWidth, 1400)}px`, minHeight: `${canvasHeight}px` }}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        proOptions={{ hideAttribution: true }}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.15}
+        maxZoom={2}
       >
-        {/* Level 1 — Fields */}
-        <div className="flex-shrink-0" style={{ width: COL_WIDTH, marginRight: COL_GAP }}>
-          <GraphColumn
-            title="Fields of interest"
-            hint="Select up to 3"
-          >
-            {fields.map(field => (
-              <motion.div
-                key={field.id}
-                variants={nodeVariants}
-                animate={shakeFieldId === field.id ? { x: [0, -4, 4, -4, 4, 0] } : {}}
-                transition={shakeFieldId === field.id ? { duration: 0.4 } : {}}
-              >
-                <GraphNode
-                  id={field.id}
-                  label={field.name}
-                  isSelected={selectedFieldIds.includes(field.id)}
-                  isDisabled={
-                    !selectedFieldIds.includes(field.id) && selectedFieldIds.length >= 3
-                  }
-                  onClick={() => handleFieldClick(field.id)}
-                />
-              </motion.div>
-            ))}
-          </GraphColumn>
-        </div>
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
+      </ReactFlow>
 
-        {/* Level 2 — Pathway */}
-        <AnimatePresence>
-          {graphLevelVisible >= 2 && (
-            <div
-              className="flex-shrink-0"
-              style={{ width: COL_WIDTH, marginRight: COL_GAP }}
-            >
-              <GraphColumn title="Pathway" hint="Academic or industry?">
-                <PathwayNode
-                  label="Academic"
-                  description="Supervised research topics from professors"
-                  icon={<GraduationCap className="size-4" />}
-                  isSelected={selectedPathways.includes('academic')}
-                  onClick={() => togglePathway('academic')}
-                />
-                <PathwayNode
-                  label="Industry"
-                  description="Company-driven thesis with real-world data"
-                  icon={<Building2 className="size-4" />}
-                  isSelected={selectedPathways.includes('industry')}
-                  onClick={() => togglePathway('industry')}
-                />
-              </GraphColumn>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Level 3 — Sources */}
-        <AnimatePresence>
-          {graphLevelVisible >= 3 && sourceNodes.length > 0 && (
-            <div
-              className="flex-shrink-0"
-              style={{ width: COL_WIDTH, marginRight: COL_GAP }}
-            >
-              <GraphColumn
-                title={
-                  selectedPathways.includes('academic') && selectedPathways.includes('industry')
-                    ? 'Supervisors & Companies'
-                    : selectedPathways.includes('academic')
-                    ? 'Supervisors'
-                    : 'Companies'
-                }
-                hint="Select up to 3"
-              >
-                {sourceNodes.map(src => {
-                  const isSupervisor = !!supervisorById[src.id]
-                  const label = isSupervisor
-                    ? `${supervisorById[src.id].title} ${supervisorById[src.id].lastName}`
-                    : companyById[src.id]?.name ?? src.id
-                  const sublabel = isSupervisor
-                    ? supervisorById[src.id].researchInterests.slice(0, 2).join(', ')
-                    : companyById[src.id]?.domains.slice(0, 2).join(', ')
-
-                  return (
-                    <GraphNode
-                      key={src.id}
-                      id={src.id}
-                      label={label}
-                      sublabel={sublabel}
-                      icon={
-                        isSupervisor ? (
-                          <GraduationCap className="size-3 text-muted-foreground" />
-                        ) : (
-                          <Building2 className="size-3 text-muted-foreground" />
-                        )
-                      }
-                      isSelected={selectedSourceIds.includes(src.id)}
-                      isDisabled={
-                        !selectedSourceIds.includes(src.id) && selectedSourceIds.length >= 3
-                      }
-                      onClick={() => toggleSource(src.id)}
-                    />
-                  )
-                })}
-              </GraphColumn>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Level 4 — Topics */}
-        <AnimatePresence>
-          {graphLevelVisible >= 4 && topicNodes.length > 0 && (
-            <div className="flex-shrink-0" style={{ width: COL_WIDTH }}>
-              <GraphColumn
-                title="Thesis topics"
-                hint={`${topicNodes.length} found · click to view`}
-              >
-                {topicNodes.map(topic => {
-                  const isBookmarked = bookmarkedTopicIds.includes(topic.id)
-                  const isActive = activeTopicId === topic.id
-                  const sourceName = topic.companyId
-                    ? companyById[topic.companyId]?.name
-                    : topic.supervisorIds[0]
-                    ? `${supervisorById[topic.supervisorIds[0]]?.title} ${supervisorById[topic.supervisorIds[0]]?.lastName}`
-                    : ''
-                  const degreeTags = topic.degrees.map(degreeLabel).join(' / ')
-
-                  return (
-                    <motion.div
-                      key={topic.id}
-                      variants={nodeVariants}
-                      className="relative"
-                    >
-                      <motion.div
-                        onClick={() => setActiveTopic(isActive ? null : topic.id)}
-                        animate={{
-                          backgroundColor: isActive ? 'var(--foreground)' : 'var(--card)',
-                          borderColor: isActive ? 'var(--foreground)' : 'var(--border)',
-                        }}
-                        whileHover={{ scale: 1.02, transition: { duration: 0.12 } }}
-                        whileTap={{ scale: 0.97, transition: { duration: 0.08 } }}
-                        transition={{ duration: 0.15 }}
-                        className={cn(
-                          'relative flex w-[200px] cursor-pointer flex-col justify-center rounded-xl border px-4 py-3 shadow-sm select-none',
-                          'min-h-[68px] pr-10'
-                        )}
-                      >
-                        <p
-                          className="ds-label leading-tight line-clamp-2"
-                          style={{ color: isActive ? 'var(--background)' : 'var(--foreground)' }}
-                        >
-                          {topic.title}
-                        </p>
-                        <p
-                          className="ds-caption mt-0.5 leading-tight truncate"
-                          style={{
-                            color: isActive ? 'oklch(0.7 0 0)' : 'var(--muted-foreground)',
-                          }}
-                        >
-                          {sourceName} · {degreeTags}
-                        </p>
-                      </motion.div>
-
-                      {/* Bookmark button */}
-                      <motion.button
-                        whileTap={{ scale: 0.8 }}
-                        onClick={e => {
-                          e.stopPropagation()
-                          toggleBookmark(topic.id)
-                        }}
-                        className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark topic'}
-                      >
-                        {isBookmarked ? (
-                          <BookmarkCheck className="size-3.5 text-foreground" />
-                        ) : (
-                          <Bookmark className="size-3.5" />
-                        )}
-                      </motion.button>
-                    </motion.div>
-                  )
-                })}
-
-                {topicsForSourcesAndFields(selectedSourceIds, selectedFieldIds, selectedPathways).length > 15 && (
-                  <p className="ds-caption text-muted-foreground px-2">
-                    +{topicsForSourcesAndFields(selectedSourceIds, selectedFieldIds, selectedPathways).length - 15} more — refine your selection
-                  </p>
-                )}
-              </GraphColumn>
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Empty state for Level 3 — no results */}
-        <AnimatePresence>
-          {graphLevelVisible >= 3 && sourceNodes.length === 0 && (
-            <motion.div
-              key="empty-sources"
-              initial={columnInitial}
-              animate={columnAnimate}
-              exit={columnExit}
-              transition={columnTransition}
-              className="flex-shrink-0 flex flex-col items-center justify-center text-center"
-              style={{ width: COL_WIDTH, marginRight: COL_GAP, minHeight: 200 }}
-            >
-              <p className="ds-label text-muted-foreground">No sources found</p>
-              <p className="ds-caption text-muted-foreground/60 mt-1">
-                Try selecting different fields
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Legend / instructions */}
-      <div className="absolute bottom-4 left-12 right-4 flex items-center gap-4 pointer-events-none">
-        {selectedFieldIds.length === 0 && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="ds-caption text-muted-foreground/70"
-          >
-            ← Start by selecting your fields of interest
-          </motion.p>
+      {/* Graph instruction hints */}
+      <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center">
+        {graphLevel === 1 && (
+          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
+            Select up to 3 fields of interest to begin
+          </p>
         )}
-        {selectedFieldIds.length > 0 && selectedPathways.length === 0 && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="ds-caption text-muted-foreground/70"
-          >
-            Now choose your pathway →
-          </motion.p>
+        {graphLevel === 2 && (
+          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
+            Choose Academic, Industry, or both
+          </p>
         )}
-        {selectedPathways.length > 0 && selectedSourceIds.length === 0 && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="ds-caption text-muted-foreground/70"
-          >
-            Select supervisors or companies to explore their topics →
-          </motion.p>
+        {graphLevel === 3 && (
+          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
+            Select up to 3 supervisors or companies
+          </p>
         )}
-        {selectedSourceIds.length > 0 && topicNodes.length === 0 && (
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="ds-caption text-muted-foreground/70"
-          >
-            No topics matched — try different fields or sources
-          </motion.p>
+        {graphLevel === 4 && (
+          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
+            Click a topic to view details · bookmark to save
+          </p>
         )}
       </div>
     </div>
+  )
+}
+
+// ─── Public export (wraps in provider) ───────────────────────────────────────
+
+export function GraphView() {
+  return (
+    <ReactFlowProvider>
+      <GraphCanvas />
+    </ReactFlowProvider>
   )
 }
