@@ -9,15 +9,17 @@ import universitiesData from "../../mock-data/universities.json"
 import companiesData from "../../mock-data/companies.json"
 import fieldsData from "../../mock-data/fields.json"
 import projectsData from "../../mock-data/projects.json"
+import studentsData from "../../mock-data/students.json"
 import TopicNode from "../components/nodes/TopicNode"
 import ExpertNode from "../components/nodes/ExpertNode"
 import SupervisorNode from "../components/nodes/SupervisorNode"
 import UniversityNode from "../components/nodes/UniversityNode"
 import CompanyNode from "../components/nodes/CompanyNode"
 import ProjectNode from "../components/nodes/ProjectNode"
+import StudentNode from "../components/nodes/StudentNode"
 import type { Topic } from "../types/topic"
 import type { Expert, Company } from "../types/booking"
-import type { Supervisor, University, Project } from "../types/entities"
+import type { Supervisor, University, Project, Student } from "../types/entities"
 
 const nodeTypes = {
   topicNode: TopicNode,
@@ -26,6 +28,7 @@ const nodeTypes = {
   universityNode: UniversityNode,
   companyNode: CompanyNode,
   projectNode: ProjectNode,
+  studentNode: StudentNode,
 }
 
 function resolveFields(ids: string[]) {
@@ -137,6 +140,19 @@ function buildGraph(topic: Topic) {
         edges.push({ id: `${project.id}-${expertId}`, source: project.id, target: expertId })
       }
     })
+
+    // Student
+    const student = (studentsData as Student[]).find((s) => s.id === project.studentId)
+    if (student) {
+      if (!nodeIds.has(student.id)) {
+        nodeIds.add(student.id)
+        nodes.push({ id: student.id, type: "studentNode", position: { x: projX, y: -650 }, data: student })
+      }
+      edges.push({ id: `${project.id}-${student.id}`, source: project.id, target: student.id })
+      if (nodeIds.has(student.universityId)) {
+        edges.push({ id: `${student.id}-${student.universityId}`, source: student.id, target: student.universityId })
+      }
+    }
   })
 
   return { nodes, edges }

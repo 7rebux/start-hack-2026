@@ -1,3 +1,17 @@
+export interface Student {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  degree: "bsc" | "msc" | "phd"
+  studyProgramId: string
+  universityId: string
+  skills: string[]
+  about: string | null
+  objectives: string[]
+  fieldIds: string[]
+}
+
 export interface Supervisor {
   id: string
   firstName: string
