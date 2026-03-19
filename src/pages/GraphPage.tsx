@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/useAppStore'
 import { AppSidebar } from '@/components/AppSidebar'
 import { GraphView } from '@/components/graph/GraphView'
 import { TopicDetailPanel } from '@/components/TopicDetailPanel'
+import { SourceDetailPanel } from '@/components/SourceDetailPanel'
 import { topicById, companyById, supervisorById, fieldById } from '@/data/index'
 import { Badge } from '@/components/ui/badge'
 
@@ -90,7 +91,7 @@ function BookmarksView() {
 }
 
 export function GraphPage() {
-  const { currentPanel, activeTopicId } = useAppStore()
+  const { currentPanel, activeTopicId, activeSourceId } = useAppStore()
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -125,9 +126,10 @@ export function GraphPage() {
         </AnimatePresence>
       </div>
 
-      {/* Topic detail panel — overlays from right */}
+      {/* Detail panels — only one visible at a time (setActiveTopic clears activeSourceId and vice versa) */}
       <AnimatePresence>
-        {activeTopicId && <TopicDetailPanel key={activeTopicId} />}
+        {activeTopicId && <TopicDetailPanel key={`topic-${activeTopicId}`} />}
+        {activeSourceId && <SourceDetailPanel key={`source-${activeSourceId}`} />}
       </AnimatePresence>
     </div>
   )

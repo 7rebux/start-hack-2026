@@ -9,22 +9,26 @@ import {
   ReactFlowProvider,
   type Node,
   type Edge,
+  type NodeMouseHandler,
 } from '@xyflow/react'
 
 import { useAppStore, deriveGraphLevel } from '@/store/useAppStore'
+import { ACADEMIC, INDUSTRY } from './colors'
+
 import {
   fields,
-  supervisorsForFields,
+  universitiesForFields,
   companiesForFields,
   topicsForSourcesAndFields,
   companyById,
   supervisorById,
+  universityById,
   degreeLabel,
 } from '@/data/index'
 
+import { GraduationCap, Building2 } from 'lucide-react'
 import { CenterNode } from './nodes/CenterNode'
 import { FieldNode } from './nodes/FieldNode'
-import { PathwayNode } from './nodes/PathwayNode'
 import { SourceNode } from './nodes/SourceNode'
 import { TopicNode } from './nodes/TopicNode'
 import { FloatingEdge } from './edges/FloatingEdge'
@@ -32,7 +36,6 @@ import { FloatingEdge } from './edges/FloatingEdge'
 const nodeTypes = {
   center: CenterNode,
   field: FieldNode,
-  pathway: PathwayNode,
   source: SourceNode,
   topic: TopicNode,
 }
@@ -42,10 +45,13 @@ const edgeTypes = {
 }
 
 // ─── Layout constants ────────────────────────────────────────────────────────
-const R1 = 320  // fields ring radius
-const R2 = 540  // pathway ring radius
-const R3 = 780  // sources ring radius
-const R4 = 1040 // topics ring radius
+const R1 = 330   // fields ring radius
+const R2 = 550   // sources ring radius (universities + companies)
+const R3 = 750  // topics ring radius (close to sources)
+
+const FIELD_START_DEG  = -90  // fields fan starts from top
+const TOPIC_FAN_PER_SOURCE = 7   // degrees per topic in a source's fan
+const TOPIC_MAX_PER_SOURCE = 64  // max fan spread per source (degrees)
 
 function toRad(deg: number) { return deg * (Math.PI / 180) }
 
@@ -56,10 +62,11 @@ function ringPosition(radius: number, angleDeg: number) {
   }
 }
 
-function spreadAngles(count: number, centerDeg: number, spreadDeg: number): number[] {
+function spreadAngles(count: number, centerDeg: number, maxSpreadDeg: number): number[] {
   if (count === 1) return [centerDeg]
+  const spread = Math.min(count * 22, maxSpreadDeg)
   return Array.from({ length: count }, (_, i) =>
-    centerDeg - spreadDeg / 2 + (i / (count - 1)) * spreadDeg
+    centerDeg - spread / 2 + (i / (count - 1)) * spread
   )
 }
 
@@ -67,48 +74,41 @@ function spreadAngles(count: number, centerDeg: number, spreadDeg: number): numb
 
 interface GraphState {
   selectedFieldIds: string[]
-  selectedPathways: string[]
   selectedSourceIds: string[]
   graphLevel: number
 }
 
 function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] } {
-  const { selectedFieldIds, selectedPathways, selectedSourceIds, graphLevel } = state
+  const { selectedFieldIds, selectedSourceIds, graphLevel } = state
   const nodes: Node[] = []
   const edges: Edge[] = []
 
   const atFieldMax = selectedFieldIds.length >= 3
-  const atSourceMax = selectedSourceIds.length >= 3
 
   // ── Center node ─────────────────────────────────────────────────────────────
   nodes.push({
     id: 'center',
     type: 'center',
-    position: { x: -80, y: -30 }, // center offset for node size
+    position: { x: -80, y: -30 },
     data: {},
     draggable: true,
   })
 
   // ── Ring 1: Fields ──────────────────────────────────────────────────────────
-  const fieldCount = fields.length // 20
+  const fieldCount = fields.length
   fields.forEach((field, i) => {
-    const angleDeg = i * (360 / fieldCount) - 90 // start from top
+    const angleDeg = FIELD_START_DEG + i * (360 / fieldCount)
     const pos = ringPosition(R1, angleDeg)
+    const isFieldSelected = selectedFieldIds.includes(field.id)
 
     nodes.push({
       id: `field-${field.id}`,
       type: 'field',
-      position: { x: pos.x - 65, y: pos.y - 18 }, // center the ~130px node
-      data: {
-        fieldId: field.id,
-        label: field.name,
-        atMax: atFieldMax,
-      },
+      position: { x: pos.x - 65, y: pos.y - 18 },
+      data: { fieldId: field.id, label: field.name, atMax: atFieldMax },
       draggable: true,
     })
 
-    // Edge: field → center (always present, opacity driven by selected state in edge data)
-    const isFieldSelected = selectedFieldIds.includes(field.id)
     edges.push({
       id: `e-field-center-${field.id}`,
       source: `field-${field.id}`,
@@ -120,141 +120,88 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
 
   if (graphLevel < 2) return { nodes, edges }
 
-  // ── Ring 2: Pathways ────────────────────────────────────────────────────────
-  const pathwayDefs = [
-    { pathway: 'academic', label: 'Academic', description: 'Supervised research', angleDeg: -150 },
-    { pathway: 'industry', label: 'Industry', description: 'Company-driven thesis', angleDeg: -30 },
+  // ── Ring 2: Sources — universities LEFT (180°), companies RIGHT (0°) ──────────
+  const academicSources = universitiesForFields(selectedFieldIds).slice(0, 12)
+  const industrySources = companiesForFields(selectedFieldIds).slice(0, 12)
+  // Fan each group on its own hemisphere (max 150° each side)
+  const academicAngles = spreadAngles(academicSources.length, 180, 150)
+  const industryAngles = spreadAngles(industrySources.length, 0, 150)
+
+  // Combine with angles baked in for easy lookup later
+  const allSources: Array<{ id: string; angle: number; isAcademic: boolean }> = [
+    ...academicSources.map((s, i) => ({ id: s.id, angle: academicAngles[i], isAcademic: true })),
+    ...industrySources.map((s, i) => ({ id: s.id, angle: industryAngles[i], isAcademic: false })),
   ]
 
-  pathwayDefs.forEach(({ pathway, label, description, angleDeg }) => {
-    const pos = ringPosition(R2, angleDeg)
+  allSources.forEach(({ id: srcId, angle, isAcademic }) => {
+    const src = { id: srcId }
+    const uni = isAcademic ? universityById[src.id] : null
+    const co = isAcademic ? null : companyById[src.id]
+    const label = uni?.name ?? co?.name ?? src.id
+    const sublabel = uni?.domains.slice(0, 2).join(', ') ?? co?.domains.slice(0, 2).join(', ') ?? ''
+    const pos = ringPosition(R2, angle)
     nodes.push({
-      id: `pathway-${pathway}`,
-      type: 'pathway',
-      position: { x: pos.x - 85, y: pos.y - 55 }, // center ~170×110px node
-      data: { pathway, label, description },
+      id: `source-${src.id}`,
+      type: 'source',
+      position: { x: pos.x - 80, y: pos.y - 28 },
+      data: { sourceId: src.id, label, sublabel, isAcademic, atMax: false },
       draggable: true,
     })
-
-    // Edge from each selected field → pathway node
-    selectedFieldIds.forEach(fid => {
-      edges.push({
-        id: `e-field-pathway-${fid}-${pathway}`,
-        source: `field-${fid}`,
-        target: `pathway-${pathway}`,
-        type: 'floating',
-        data: { selected: selectedPathways.includes(pathway), dimmed: !selectedPathways.includes(pathway) },
-      } as Edge)
-    })
+    // Edge: center → source (dimmed until selected)
+    edges.push({
+      id: `e-center-source-${src.id}`,
+      source: 'center',
+      target: `source-${src.id}`,
+      type: 'floating',
+      data: { selected: selectedSourceIds.includes(src.id), dimmed: !selectedSourceIds.includes(src.id), isAcademic },
+    } as Edge)
   })
 
   if (graphLevel < 3) return { nodes, edges }
 
-  // ── Ring 3: Sources ─────────────────────────────────────────────────────────
-  const sourceNodes =
-    selectedPathways.includes('academic') && selectedPathways.includes('industry')
-      ? [
-          ...supervisorsForFields(selectedFieldIds).slice(0, 7),
-          ...companiesForFields(selectedFieldIds).slice(0, 6),
-        ]
-      : selectedPathways.includes('academic')
-      ? supervisorsForFields(selectedFieldIds).slice(0, 10)
-      : selectedPathways.includes('industry')
-      ? companiesForFields(selectedFieldIds).slice(0, 10)
-      : []
-
-  const sourceAngles = spreadAngles(
-    Math.max(sourceNodes.length, 1),
-    -90,
-    Math.min(sourceNodes.length * 22, 280)
-  )
-
-  sourceNodes.forEach((src, i) => {
-    const isSupervisor = !!supervisorById[src.id]
-    const label = isSupervisor
-      ? `${supervisorById[src.id].title} ${supervisorById[src.id].lastName}`
-      : companyById[src.id]?.name ?? src.id
-    const sublabel = isSupervisor
-      ? supervisorById[src.id].researchInterests.slice(0, 2).join(', ')
-      : companyById[src.id]?.domains.slice(0, 2).join(', ')
-
-    const pos = ringPosition(R3, sourceAngles[i])
-    nodes.push({
-      id: `source-${src.id}`,
-      type: 'source',
-      position: { x: pos.x - 80, y: pos.y - 28 }, // center ~160×56px node
-      data: {
-        sourceId: src.id,
-        label,
-        sublabel,
-        isAcademic: isSupervisor,
-        atMax: atSourceMax,
-      },
-      draggable: true,
-    })
-
-    // Edge: relevant pathway → source
-    const pathway = isSupervisor ? 'academic' : 'industry'
-    if (selectedPathways.includes(pathway)) {
-      edges.push({
-        id: `e-pathway-source-${pathway}-${src.id}`,
-        source: `pathway-${pathway}`,
-        target: `source-${src.id}`,
-        type: 'floating',
-        data: { selected: selectedSourceIds.includes(src.id), dimmed: !selectedSourceIds.includes(src.id) },
-      } as Edge)
-    }
-  })
-
-  if (graphLevel < 4) return { nodes, edges }
-
-  // ── Ring 4: Topics ───────────────────────────────────────────────────────────
-  const topicList = topicsForSourcesAndFields(
+  // ── Ring 3: Topics — clustered near each selected source node ─────────────────
+  const allTopics = topicsForSourcesAndFields(
     selectedSourceIds,
     selectedFieldIds,
-    selectedPathways as ('academic' | 'industry')[]
-  ).slice(0, 15)
-
-  const topicAngles = spreadAngles(
-    Math.max(topicList.length, 1),
-    -90,
-    Math.min(topicList.length * 18, 300)
+    ['academic', 'industry']
   )
 
-  topicList.forEach((topic, i) => {
-    const sourceName = topic.companyId
-      ? companyById[topic.companyId]?.name ?? ''
-      : topic.supervisorIds[0]
-      ? `${supervisorById[topic.supervisorIds[0]]?.title} ${supervisorById[topic.supervisorIds[0]]?.lastName}`
-      : ''
-    const degreeTags = topic.degrees.map(degreeLabel).join(' / ')
+  allSources.forEach((src) => {
+    if (!selectedSourceIds.includes(src.id)) return
+    const srcAngle = src.angle
+    const isAcademic = src.isAcademic
+    const srcTopics = allTopics
+      .filter(t => isAcademic ? t.universityId === src.id : t.companyId === src.id)
+      .slice(0, 8)
+    if (srcTopics.length === 0) return
 
-    const pos = ringPosition(R4, topicAngles[i])
-    nodes.push({
-      id: `topic-${topic.id}`,
-      type: 'topic',
-      position: { x: pos.x - 85, y: pos.y - 35 }, // center ~170×70px node
-      data: {
-        topicId: topic.id,
-        label: topic.title,
-        sourceName,
-        degreeTags,
-      },
-      draggable: true,
+    const fanSpread = Math.min(srcTopics.length * TOPIC_FAN_PER_SOURCE, TOPIC_MAX_PER_SOURCE)
+    const tAngles = spreadAngles(srcTopics.length, srcAngle, fanSpread)
+
+    srcTopics.forEach((topic, j) => {
+      const isTopicAcademic = !topic.companyId
+      const sourceName = topic.companyId
+        ? companyById[topic.companyId]?.name ?? ''
+        : topic.supervisorIds[0]
+          ? `${supervisorById[topic.supervisorIds[0]]?.title ?? ''} ${supervisorById[topic.supervisorIds[0]]?.lastName ?? ''}`.trim()
+          : (topic.universityId ? universityById[topic.universityId]?.name ?? '' : '')
+      const degreeTags = topic.degrees.map(degreeLabel).join(' / ')
+      const pos = ringPosition(R3, tAngles[j])
+      nodes.push({
+        id: `topic-${topic.id}`,
+        type: 'topic',
+        position: { x: pos.x - 85, y: pos.y - 35 },
+        data: { topicId: topic.id, label: topic.title, sourceName, degreeTags, isAcademic: isTopicAcademic },
+        draggable: true,
+      })
+      edges.push({
+        id: `e-source-topic-${src.id}-${topic.id}`,
+        source: `source-${src.id}`,
+        target: `topic-${topic.id}`,
+        type: 'floating',
+        data: { selected: true, dimmed: false, isAcademic: isTopicAcademic },
+      } as Edge)
     })
-
-    // Edges: selected source → topics it owns
-    for (const sid of selectedSourceIds) {
-      if (topic.supervisorIds.includes(sid) || topic.companyId === sid) {
-        edges.push({
-          id: `e-source-topic-${sid}-${topic.id}`,
-          source: `source-${sid}`,
-          target: `topic-${topic.id}`,
-          type: 'floating',
-          data: { selected: true, dimmed: false },
-        } as Edge)
-      }
-    }
   })
 
   return { nodes, edges }
@@ -276,7 +223,6 @@ function GraphCanvas() {
   useEffect(() => {
     const { nodes: newNodes, edges: newEdges } = buildGraphElements({
       selectedFieldIds: store.selectedFieldIds,
-      selectedPathways: store.selectedPathways,
       selectedSourceIds: store.selectedSourceIds,
       graphLevel,
     })
@@ -290,7 +236,6 @@ function GraphCanvas() {
     prevLevel.current = graphLevel
   }, [
     store.selectedFieldIds,
-    store.selectedPathways,
     store.selectedSourceIds,
     graphLevel,
     setNodes,
@@ -299,10 +244,18 @@ function GraphCanvas() {
   ])
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
-    // Node clicks are handled inside each custom node component via the store
-    // No additional logic needed here — keeps nodes self-contained
-    void node
-  }, [])
+    if (node.id.startsWith('topic-')) {
+      const topicId = node.id.replace('topic-', '')
+      store.setActiveTopic(store.activeTopicId === topicId ? null : topicId)
+    }
+  }, [store])
+
+  const onNodeDoubleClick = useCallback<NodeMouseHandler>((_e, node) => {
+    if (node.id.startsWith('source-')) {
+      const sourceId = node.id.replace('source-', '')
+      store.setActiveSource(sourceId)
+    }
+  }, [store])
 
   return (
     <div className="h-full w-full">
@@ -312,6 +265,7 @@ function GraphCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         proOptions={{ hideAttribution: true }}
@@ -323,28 +277,33 @@ function GraphCanvas() {
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
       </ReactFlow>
 
-      {/* Graph instruction hints */}
-      <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex justify-center">
-        {graphLevel === 1 && (
-          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
-            Select up to 3 fields of interest to begin
-          </p>
-        )}
-        {graphLevel === 2 && (
-          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
-            Choose Academic, Industry, or both
-          </p>
-        )}
-        {graphLevel === 3 && (
-          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
-            Select up to 3 supervisors or companies
-          </p>
-        )}
-        {graphLevel === 4 && (
-          <p className="ds-caption rounded-lg bg-background/80 px-3 py-1.5 text-muted-foreground backdrop-blur-sm border border-border">
-            Click a topic to view details · bookmark to save
-          </p>
-        )}
+      {/* Bottom bar: legend + hint */}
+      <div className="pointer-events-none absolute bottom-4 left-4 right-4 flex items-center justify-between gap-4">
+
+        {/* Color legend — visible once sources appear */}
+        <div className={`flex items-center gap-4 rounded-lg bg-background/80 backdrop-blur-sm border border-border px-4 py-2 transition-opacity duration-300 ${graphLevel >= 2 ? 'opacity-100' : 'opacity-0'}`}>
+          <div className="flex items-center gap-1.5">
+            <div className="flex size-5 items-center justify-center rounded-md" style={{ backgroundColor: ACADEMIC.bg, border: `1px solid ${ACADEMIC.border}` }}>
+              <GraduationCap className="size-3" style={{ color: ACADEMIC.text }} />
+            </div>
+            <span className="ds-caption text-muted-foreground">Universities</span>
+          </div>
+          <div className="w-px h-3 bg-border" />
+          <div className="flex items-center gap-1.5">
+            <div className="flex size-5 items-center justify-center rounded-md" style={{ backgroundColor: INDUSTRY.bg, border: `1px solid ${INDUSTRY.border}` }}>
+              <Building2 className="size-3" style={{ color: INDUSTRY.text }} />
+            </div>
+            <span className="ds-caption text-muted-foreground">Companies</span>
+          </div>
+        </div>
+
+        {/* Contextual hint */}
+        <p className="ds-caption rounded-lg bg-background/80 px-3 py-2 text-muted-foreground backdrop-blur-sm border border-border">
+          {graphLevel === 1 && 'Select up to 3 fields of interest to begin'}
+          {graphLevel === 2 && 'Click to select a source · double-click for details'}
+          {graphLevel === 3 && 'Click a topic to preview · double-click a source for full profile'}
+        </p>
+
       </div>
     </div>
   )

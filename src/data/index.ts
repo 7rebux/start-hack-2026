@@ -106,11 +106,14 @@ export function programsForUniversity(universityId: string): StudyProgram[] {
   return programs.filter(p => p.universityId === universityId)
 }
 
-export function supervisorsForFields(fieldIds: string[]): Supervisor[] {
+export function universitiesForFields(fieldIds: string[]): University[] {
   if (fieldIds.length === 0) return []
-  return supervisors.filter(s =>
-    s.fieldIds.some(fid => fieldIds.includes(fid))
+  const relevantUniversityIds = new Set(
+    topics
+      .filter(t => t.universityId && t.fieldIds.some(fid => fieldIds.includes(fid)))
+      .map(t => t.universityId!)
   )
+  return universities.filter(u => relevantUniversityIds.has(u.id))
 }
 
 export function companiesForFields(fieldIds: string[]): Company[] {
@@ -132,7 +135,7 @@ export function topicsForSourcesAndFields(
   return topics.filter(t => {
     const fieldMatch = fieldIds.length === 0 || t.fieldIds.some(fid => fieldIds.includes(fid))
     if (!fieldMatch) return false
-    if (pathways.includes('academic') && t.supervisorIds.some(sid => selectedSourceIds.includes(sid))) return true
+    if (pathways.includes('academic') && t.universityId && selectedSourceIds.includes(t.universityId)) return true
     if (pathways.includes('industry') && t.companyId && selectedSourceIds.includes(t.companyId)) return true
     return false
   })
