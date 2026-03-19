@@ -3,6 +3,20 @@ import { create } from 'zustand'
 export type AppView = 'onboarding' | 'graph'
 export type SidebarPanel = 'graph' | 'bookmarks' | 'compare' | 'search'
 
+export interface TopicGroup {
+  id: string          // "{fieldId}-{i}" — unique across all fields
+  name: string
+  description: string
+  topicIds: string[]
+}
+
+export interface FieldEntry {
+  fieldId: string
+  fieldName: string
+  groups: TopicGroup[]
+  loading: boolean
+}
+
 interface AppState {
   // Navigation
   currentView: AppView
@@ -24,6 +38,11 @@ interface AppState {
   // Compare
   compareTopicIds: [string | null, string | null]
 
+  // Graph mode (new unified graph)
+  fieldEntries: FieldEntry[]          // one entry per field added via the + button
+  activeGroupIds: string[]            // groups currently expanded inline
+  selectedNodeId: string              // the currently selected node (drives visibility)
+
   // Actions
   setUniversityId: (id: string) => void
   setProgramId: (id: string) => void
@@ -37,10 +56,16 @@ interface AppState {
   moveBookmark: (topicId: string, direction: 'up' | 'down') => void
   toggleCompare: (topicId: string) => void
   setCurrentPanel: (panel: SidebarPanel) => void
+  addFieldEntry: (fieldId: string, fieldName: string) => void
+  setFieldEntryGroups: (fieldId: string, groups: TopicGroup[]) => void
+  setFieldEntryLoading: (fieldId: string, loading: boolean) => void
+  enterTopicDetail: (groupId: string) => void  // toggles — adds if absent, removes if present
+  exitTopicDetail: () => void                   // collapses all
+  setSelectedNode: (nodeId: string) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentView: 'onboarding',
+  currentView: 'graph',
   currentPanel: 'graph',
 
   selectedUniversityId: null,
@@ -53,6 +78,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeSourceId: null,
   bookmarkedTopicIds: [],
   compareTopicIds: [null, null],
+
+  fieldEntries: [],
+  activeGroupIds: [],
+  selectedNodeId: 'uni-program',
 
   setUniversityId: (id) => set({ selectedUniversityId: id, selectedProgramId: null }),
 
@@ -142,6 +171,34 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setCurrentPanel: (panel) => set({ currentPanel: panel }),
+
+  addFieldEntry: (fieldId, fieldName) => {
+    const { fieldEntries } = get()
+    if (fieldEntries.some(e => e.fieldId === fieldId)) return  // no duplicates
+    set({ fieldEntries: [...fieldEntries, { fieldId, fieldName, groups: [], loading: true }] })
+  },
+
+  setFieldEntryGroups: (fieldId, groups) => {
+    const { fieldEntries } = get()
+    set({ fieldEntries: fieldEntries.map(e => e.fieldId === fieldId ? { ...e, groups } : e) })
+  },
+
+  setFieldEntryLoading: (fieldId, loading) => {
+    const { fieldEntries } = get()
+    set({ fieldEntries: fieldEntries.map(e => e.fieldId === fieldId ? { ...e, loading } : e) })
+  },
+
+  enterTopicDetail: (groupId) => {
+    const { activeGroupIds } = get()
+    const next = activeGroupIds.includes(groupId)
+      ? activeGroupIds.filter(id => id !== groupId)
+      : [...activeGroupIds, groupId]
+    set({ activeGroupIds: next })
+  },
+
+  exitTopicDetail: () => set({ activeGroupIds: [] }),
+
+  setSelectedNode: (nodeId) => set({ selectedNodeId: nodeId }),
 }))
 
 // Pure derived selector — 3 levels: fields → sources → topics

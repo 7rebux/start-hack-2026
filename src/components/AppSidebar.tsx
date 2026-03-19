@@ -1,23 +1,10 @@
 import { Network, Bookmark, Scale, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
-import { universityById, programsForUniversity } from '@/data/index'
 import studyondLogo from '@/assets/studyond.svg'
 
 export function AppSidebar() {
-  const {
-    currentPanel,
-    setCurrentPanel,
-    bookmarkedTopicIds,
-    selectedUniversityId,
-    selectedProgramId,
-    goToOnboarding,
-  } = useAppStore()
-
-  const university = selectedUniversityId ? universityById[selectedUniversityId] : null
-  const program = selectedProgramId && selectedUniversityId
-    ? programsForUniversity(selectedUniversityId).find(p => p.id === selectedProgramId)
-    : null
+  const { currentPanel, setCurrentPanel, bookmarkedTopicIds } = useAppStore()
 
   return (
     <aside className="flex w-56 flex-col border-r border-border bg-background h-full flex-shrink-0">
@@ -89,22 +76,6 @@ export function AppSidebar() {
           Search
         </button>
       </nav>
-
-      {/* User info at bottom */}
-      {university && (
-        <div className="border-t border-border p-3">
-          <button
-            onClick={goToOnboarding}
-            className="w-full rounded-lg p-2 text-left hover:bg-secondary/60 transition-colors"
-          >
-            <p className="ds-label truncate">{university.name}</p>
-            {program && (
-              <p className="ds-caption text-muted-foreground truncate mt-0.5">{program.name}</p>
-            )}
-            <p className="ds-caption text-muted-foreground/60 mt-1">Change →</p>
-          </button>
-        </div>
-      )}
     </aside>
   )
 }

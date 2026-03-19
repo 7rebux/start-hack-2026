@@ -1,0 +1,40 @@
+import { Handle, Position } from '@xyflow/react'
+import type { Company } from '@/data/index'
+
+interface CompanyDetailNodeProps {
+  data: Company
+}
+
+export function CompanyDetailNode({ data }: CompanyDetailNodeProps) {
+  return (
+    <div className="bg-white border border-rose-200 rounded-xl shadow-lg p-5 w-[320px]">
+      <Handle type="target" position={Position.Top} className="opacity-0" />
+
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <h3 className="text-sm font-semibold text-gray-900">{data.name}</h3>
+        <span className="shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+          Company
+        </span>
+      </div>
+
+      {data.about && (
+        <p className="text-xs text-gray-600 leading-relaxed mb-2">{data.about}</p>
+      )}
+
+      <p className="text-xs font-medium text-rose-600 mb-3">{data.size} employees</p>
+
+      <div className="flex flex-wrap gap-1.5">
+        {data.domains.map(domain => (
+          <span
+            key={domain}
+            className="text-xs px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"
+          >
+            {domain}
+          </span>
+        ))}
+      </div>
+
+      <Handle type="source" position={Position.Bottom} className="opacity-0" />
+    </div>
+  )
+}

@@ -126,6 +126,10 @@ export function companiesForFields(fieldIds: string[]): Company[] {
   return companies.filter(c => relevantCompanyIds.has(c.id))
 }
 
+export function topicsForField(fieldId: string): Topic[] {
+  return topics.filter(t => t.fieldIds.includes(fieldId))
+}
+
 export function topicsForSourcesAndFields(
   selectedSourceIds: string[],
   fieldIds: string[],
