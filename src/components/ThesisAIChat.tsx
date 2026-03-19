@@ -92,7 +92,7 @@ export function ThesisAIChat() {
             const updated = [...prev]
             updated[updated.length - 1] = {
               role: "assistant",
-              content: updated[updated.length - 1].content + event.delta.text,
+              content: updated[updated.length - 1].content + (event.delta as { type: string; text: string }).text,
             }
             return updated
           })
