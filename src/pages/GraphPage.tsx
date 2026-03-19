@@ -5,6 +5,7 @@ import { AppSidebar } from '@/components/AppSidebar'
 import { GraphView } from '@/components/graph/GraphView'
 import { TopicDetailPanel } from '@/components/TopicDetailPanel'
 import { SourceDetailPanel } from '@/components/SourceDetailPanel'
+import { ComparePage } from '@/pages/ComparePage'
 import { topicById, companyById, supervisorById, fieldById } from '@/data/index'
 import { Badge } from '@/components/ui/badge'
 
@@ -100,7 +101,7 @@ export function GraphPage() {
       {/* Main content area */}
       <div className="relative flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
-          {currentPanel === 'graph' ? (
+          {currentPanel === 'graph' && (
             <motion.div
               key="graph"
               initial={{ opacity: 0 }}
@@ -111,7 +112,8 @@ export function GraphPage() {
             >
               <GraphView />
             </motion.div>
-          ) : (
+          )}
+          {currentPanel === 'bookmarks' && (
             <motion.div
               key="bookmarks"
               initial={{ opacity: 0 }}
@@ -121,6 +123,18 @@ export function GraphPage() {
               className="h-full w-full"
             >
               <BookmarksView />
+            </motion.div>
+          )}
+          {currentPanel === 'compare' && (
+            <motion.div
+              key="compare"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              <ComparePage />
             </motion.div>
           )}
         </AnimatePresence>

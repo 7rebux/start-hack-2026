@@ -1,4 +1,4 @@
-import { Network, Bookmark } from 'lucide-react'
+import { Network, Bookmark, Scale } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
 import { universityById, programsForUniversity } from '@/data/index'
@@ -59,6 +59,20 @@ export function AppSidebar() {
               {bookmarkedTopicIds.length}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setCurrentPanel('compare')}
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
+            'ds-label',
+            currentPanel === 'compare'
+              ? 'bg-secondary text-foreground font-medium'
+              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+          )}
+        >
+          <Scale className="size-4 flex-shrink-0" />
+          Compare
         </button>
       </nav>
 
