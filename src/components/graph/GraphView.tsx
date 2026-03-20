@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useMemo, useRef } from 'react'
 import studyondLogo from '@/assets/studyond.svg'
 import {
   ReactFlow,
@@ -258,6 +258,9 @@ function GraphCanvas() {
   const graphLevel = deriveGraphLevel(store)
   const prevLevel = useRef(graphLevel)
 
+  const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), [])
+  const memoEdgeTypes = useMemo(() => ({ ...edgeTypes }), [])
+
   // Persist dragged positions across rebuilds
   const nodePositions = useRef<Map<string, { x: number; y: number }>>(new Map())
 
@@ -324,8 +327,8 @@ function GraphCanvas() {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        nodeTypes={memoNodeTypes}
+        edgeTypes={memoEdgeTypes}
         proOptions={{ hideAttribution: true }}
         fitView
         fitViewOptions={{ padding: 0.2 }}

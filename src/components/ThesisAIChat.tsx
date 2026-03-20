@@ -7,7 +7,7 @@ import { Sparkles, Send } from "lucide-react"
 
 const client = new Anthropic({
   apiKey: 'not-needed',
-  baseURL: '/api/ai',
+  baseURL: `${window.location.origin}/api/ai`,
   dangerouslyAllowBrowser: true,
 })
 

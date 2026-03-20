@@ -378,6 +378,8 @@ function TopicFlow({ topic }: { topic: Topic }) {
   useEffect(() => { rfNodesRef.current = rfNodes; }, [rfNodes]);
   const isFirstLayout = useRef(true);
 
+  const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), []);
+
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setActiveNode((prev) =>
       prev && prev.data.id === node.data.id ? null : { type: node.type!, data: node.data },
@@ -507,7 +509,7 @@ function TopicFlow({ topic }: { topic: Topic }) {
           edges={rfEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
+          nodeTypes={memoNodeTypes}
           onInit={(instance) => { rfInstanceRef.current = instance; setRfInstance(instance); }}
           nodesConnectable={false}
           elementsSelectable={false}
