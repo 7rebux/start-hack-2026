@@ -3,14 +3,18 @@ import { useAppStore } from '@/store/useAppStore'
 import { PHASES } from '@/data/phases'
 
 export function PhasesBar() {
-  const { currentPhase, setCurrentPhase } = useAppStore()
+  const { currentPhase, setCurrentPhase, bookmarkedTopicIds, plannedTopicId, selectedProjectId } = useAppStore()
 
   return (
-    <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-md">
+    <div className="flex shrink-0 items-center justify-center py-3">
+      <div className="flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-md">
         {PHASES.map((phase, idx) => {
           const isActive = currentPhase === phase.id
-          const notClickable = phase.disabled || (phase.id === 3 && currentPhase !== 3)
+          const notClickable =
+            phase.disabled ||
+            (phase.id === 2 && bookmarkedTopicIds.length === 0) ||
+            (phase.id === 3 && !plannedTopicId) ||
+            (phase.id === 4 && !selectedProjectId)
           return (
             <div key={phase.id} className="flex items-center gap-1">
               {idx > 0 && (

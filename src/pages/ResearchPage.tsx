@@ -7,6 +7,8 @@ import ReactFlow, {
   useEdgesState,
   ConnectionLineType,
   type Node,
+  type Edge,
+  type NodeChange,
 } from "reactflow"
 import "reactflow/dist/style.css"
 import ELK from "elkjs/lib/elk.bundled.js"
@@ -30,20 +32,20 @@ const client = new Anthropic({
 // ── ELK layout ────────────────────────────────────────────────────────────────
 const elk = new ELK()
 const NODE_W = 220
-const NODE_H = 100
+const NODE_H = 160
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function applyElkLayout(nodes: any[], edges: any[]): Promise<any[]> {
+async function applyElkLayout(nodes: any[], edges: any[], heightHints: Map<string, number>): Promise<any[]> {
   if (nodes.length === 0) return nodes
   const elkGraph = {
     id: "elk-container",
     layoutOptions: {
       "elk.algorithm": "mrtree",
       "elk.direction": "DOWN",
-      "elk.spacing.nodeNode": "30",
-      "elk.spacing.edgeNode": "20",
+      "elk.spacing.nodeNode": "80",
+      "elk.spacing.edgeNode": "60",
     },
-    children: nodes.map((n) => ({ id: n.id, width: NODE_W, height: NODE_H })),
+    children: nodes.map((n) => ({ id: n.id, width: NODE_W, height: heightHints.get(n.id) ?? NODE_H })),
     edges: edges
       .filter((e) => nodes.some((n) => n.id === e.source) && nodes.some((n) => n.id === e.target))
       .map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
@@ -171,53 +173,128 @@ interface ChatMessage {
   content: string
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-export function ResearchPage() {
-  const plannedTopicId = useAppStore((s) => s.plannedTopicId)
-  const plannedTopic = plannedTopicId ? topicById[plannedTopicId] : null
+// ── Per-topic graph persistence (survives component unmount) ─────────────────
+interface PersistedGraph {
+  nodeDataMap: Map<string, ResearchNodeData>
+  edges: Edge[]
+  knownNodeIds: Set<string>
+  positions: Map<string, { x: number; y: number }>
+  chat: ChatMessage[]
+  conversation: Anthropic.MessageParam[]
+}
+const persistedGraphs = new Map<string, PersistedGraph>()
 
-  const rootNodeData: ResearchNodeData = {
+function makeRootNodeData(topicId: string | null): ResearchNodeData {
+  const topic = topicId ? topicById[topicId] : null
+  return {
     id: "root",
-    text: plannedTopic?.title ?? "AI-Driven Demand Forecasting for Perishable Goods",
-    description: plannedTopic?.description ?? "Develop a machine learning model to forecast demand for perishable goods, minimizing waste while ensuring availability.",
+    text: topic?.title ?? "Research Planning",
+    description: topic?.description ?? "Start by asking the assistant to map out your research.",
     color: "#6366f1",
     isRoot: true,
   }
+}
+
+const INITIAL_CHAT: ChatMessage[] = [{
+  role: "assistant",
+  content: "I'm your research planning assistant. Tell me what to explore and I'll build out the graph.",
+}]
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export function ResearchPage() {
+  const plannedTopicId = useAppStore((s) => s.plannedTopicId)
+  const setSelectedProjectId = useAppStore((s) => s.setSelectedProjectId)
+  const setCurrentPhase = useAppStore((s) => s.setCurrentPhase)
+
+  const activeTopicId = plannedTopicId
 
   const [nodeDataMap, setNodeDataMap] = useState<Map<string, ResearchNodeData>>(
-    new Map([["root", rootNodeData]])
+    () => {
+      const p = activeTopicId ? persistedGraphs.get(activeTopicId) : null
+      return p?.nodeDataMap ?? new Map([["root", makeRootNodeData(activeTopicId)]])
+    }
   )
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<ResearchNodeData>([])
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([])
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(
+    () => {
+      const p = activeTopicId ? persistedGraphs.get(activeTopicId) : null
+      return p?.edges ?? []
+    }
+  )
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [chat, setChat] = useState<ChatMessage[]>([
-    {
-      role: "assistant",
-      content:
-        "I'm your research planning assistant. Tell me what to explore and I'll build out the graph.",
-    },
-  ])
+  const [chat, setChat] = useState<ChatMessage[]>(
+    () => {
+      const p = activeTopicId ? persistedGraphs.get(activeTopicId) : null
+      return p?.chat ?? INITIAL_CHAT
+    }
+  )
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const conversationRef = useRef<Anthropic.MessageParam[]>([])
-  const knownNodeIds = useRef<Set<string>>(new Set(["root"]))
+  const conversationRef = useRef<Anthropic.MessageParam[]>(
+    activeTopicId ? (persistedGraphs.get(activeTopicId)?.conversation ?? []) : []
+  )
+  const knownNodeIds = useRef<Set<string>>(
+    activeTopicId
+      ? (persistedGraphs.get(activeTopicId)?.knownNodeIds ?? new Set(["root"]))
+      : new Set(["root"])
+  )
 
   const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), [])
 
-  // Persists ELK-computed positions so re-renders don't reset them to {0,0}
-  const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  // Actual DOM heights measured by ReactFlow — used by ELK to avoid overlap
+  const measuredHeightsRef = useRef<Map<string, number>>(new Map())
+  // Incremented whenever measured heights change, triggering a re-layout pass
+  const [relayoutTick, setRelayoutTick] = useState(0)
 
-  // Reset graph when planned topic changes
+  // Persists ELK-computed positions so re-renders don't reset them to {0,0}
+  const positionsRef = useRef<Map<string, { x: number; y: number }>>(
+    activeTopicId ? (persistedGraphs.get(activeTopicId)?.positions ?? new Map()) : new Map()
+  )
+
+  // Keep a ref so the save effect always writes to the CURRENT topic's key,
+  // even when the effect fires due to data changes after a topic switch.
+  const activeTopicIdRef = useRef(activeTopicId)
+  activeTopicIdRef.current = activeTopicId
+
+  // Save graph state to module-level store on every meaningful change.
+  // Intentionally omits activeTopicId from deps so switching topics doesn't
+  // save the old topic's data under the new topic's key.
   useEffect(() => {
-    setNodeDataMap(new Map([["root", rootNodeData]]))
-    setRfEdges([])
-    setSelectedNodeId(null)
-    knownNodeIds.current = new Set(["root"])
-    positionsRef.current = new Map()
-    conversationRef.current = []
+    const id = activeTopicIdRef.current
+    if (!id) return
+    persistedGraphs.set(id, {
+      nodeDataMap,
+      edges: rfEdges,
+      knownNodeIds: knownNodeIds.current,
+      positions: positionsRef.current,
+      chat,
+      conversation: conversationRef.current,
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plannedTopicId])
+  }, [nodeDataMap, rfEdges, chat])
+
+  // Restore (or initialize) graph state when active topic switches
+  useEffect(() => {
+    if (!activeTopicId) return
+    const p = persistedGraphs.get(activeTopicId)
+    if (p) {
+      setNodeDataMap(p.nodeDataMap)
+      setRfEdges(p.edges)
+      setChat(p.chat)
+      knownNodeIds.current = p.knownNodeIds
+      positionsRef.current = p.positions
+      conversationRef.current = p.conversation
+    } else {
+      setNodeDataMap(new Map([["root", makeRootNodeData(activeTopicId)]]))
+      setRfEdges([])
+      setChat(INITIAL_CHAT)
+      knownNodeIds.current = new Set(["root"])
+      positionsRef.current = new Map()
+      conversationRef.current = []
+    }
+    setSelectedNodeId(null)
+  }, [activeTopicId]) // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const selectNode = useCallback((id: string) => {
@@ -260,13 +337,47 @@ export function ResearchPage() {
   // Builds rfNodes fresh from nodeDataMap (never reads stale rfNodes state),
   // preserves positions via positionsRef, then runs ELK.
   useEffect(() => {
-    const nodes: Node<ResearchNodeData>[] = [...nodeDataMap.values()].map((data) => ({
-      id: data.id,
-      type: "researchNode",
-      position: positionsRef.current.get(data.id) ?? { x: 0, y: 0 },
-      data: { ...data, isSelected: false, onDelete: deleteNode, onSelect: selectNode },
-    }))
-    applyElkLayout(nodes, rfEdges).then((laid) => {
+    // Compute depth (BFS from root) to identify project-level nodes (depth=1)
+    const depthMap = new Map<string, number>([["root", 0]])
+    const q = ["root"]
+    while (q.length) {
+      const cur = q.shift()!
+      const d = depthMap.get(cur)!
+      for (const e of rfEdges) {
+        if (e.source === cur && !depthMap.has(e.target)) {
+          depthMap.set(e.target, d + 1)
+          q.push(e.target)
+        }
+      }
+    }
+
+    const openCompanion = () => {
+      // Unlock Phase 4 by ensuring selectedProjectId is set.
+      // Don't override if the user already picked a specific project via Select.
+      if (!useAppStore.getState().selectedProjectId) {
+        setSelectedProjectId("project-06")
+      }
+      setCurrentPhase(4)
+    }
+
+    const nodes: Node<ResearchNodeData>[] = [...nodeDataMap.values()].map((data) => {
+      const depth = depthMap.get(data.id) ?? 0
+      const isProject = depth === 1
+      return {
+        id: data.id,
+        type: "researchNode",
+        position: positionsRef.current.get(data.id) ?? { x: 0, y: 0 },
+        data: {
+          ...data,
+          isSelected: false,
+          isProject,
+          onDelete: deleteNode,
+          onSelect: selectNode,
+          onOpenCompanion: isProject ? openCompanion : undefined,
+        },
+      }
+    })
+    applyElkLayout(nodes, rfEdges, measuredHeightsRef.current).then((laid) => {
       for (const n of laid) positionsRef.current.set(n.id, n.position)
       // Re-apply selection state after layout
       setRfNodes(laid.map((n) => ({
@@ -275,7 +386,25 @@ export function ResearchPage() {
       })))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodeDataMap, rfEdges])
+  }, [nodeDataMap, rfEdges, relayoutTick])
+
+  // ── Capture measured node heights → re-run ELK with actual sizes ─────────
+  // ReactFlow emits "dimensions" changes after it measures the DOM. We store
+  // the actual heights and trigger one more ELK pass so spacing is correct.
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    let updated = false
+    for (const change of changes) {
+      if (change.type === "dimensions" && change.dimensions && change.dimensions.height > 0) {
+        const prev = measuredHeightsRef.current.get(change.id)
+        if (prev !== change.dimensions.height) {
+          measuredHeightsRef.current.set(change.id, change.dimensions.height)
+          updated = true
+        }
+      }
+    }
+    onNodesChange(changes)
+    if (updated) setRelayoutTick((t) => t + 1)
+  }, [onNodesChange])
 
   // ── Selection effect — update highlight without re-running layout ─────────
   useEffect(() => {
@@ -481,11 +610,12 @@ export function ResearchPage() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full w-full bg-gray-50">
-      <div className="flex-1">
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1">
         <ReactFlow
           nodes={rfNodes}
           edges={rfEdges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={memoNodeTypes}
           connectionLineType={ConnectionLineType.SmoothStep}
@@ -499,6 +629,7 @@ export function ResearchPage() {
           </Panel>
           <Controls />
         </ReactFlow>
+        </div>
       </div>
 
       <div className="w-[400px] flex flex-col border-l border-gray-200 bg-white">

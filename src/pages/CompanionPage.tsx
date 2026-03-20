@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react"
+import ReactMarkdown from "react-markdown"
 import Anthropic from "@anthropic-ai/sdk"
 import { useAppStore } from "@/store/useAppStore"
 import type { Project } from "@/types/entities"
@@ -12,13 +13,6 @@ import projectsRaw from "../../mock-data/projects.json"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   FolderOpen,
   GraduationCap,
@@ -160,29 +154,6 @@ function buildTimelineEvents(project: Project, milestones: Milestone[]): Timelin
   return events.sort((a, b) => a.date.localeCompare(b.date))
 }
 
-// ── ProjectSelector ────────────────────────────────────────────────────────
-
-function ProjectSelector() {
-  const { selectedProjectId, setSelectedProjectId } = useAppStore()
-
-  return (
-    <div className="flex items-center gap-3">
-      <h1 className="text-xl font-semibold">Companion</h1>
-      <Select value={selectedProjectId ?? ""} onValueChange={(v) => setSelectedProjectId(v || null)}>
-        <SelectTrigger className="w-72">
-          <SelectValue placeholder="Select a project…" />
-        </SelectTrigger>
-        <SelectContent>
-          {projects.map((p) => (
-            <SelectItem key={p.id} value={p.id}>
-              {p.title}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-}
 
 // ── TimelineEventRow ───────────────────────────────────────────────────────
 
@@ -279,7 +250,7 @@ function ProjectTimeline({ project, milestones, onAddMilestone, onDeleteMileston
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <FolderOpen className="mx-auto mb-3 size-10 opacity-30" />
-          <p className="text-sm">Select a project to view its timeline</p>
+          <p className="text-sm">Open a project from the graph to view its timeline</p>
         </div>
       </div>
     )
@@ -495,7 +466,7 @@ Be concise, direct, practical. Use bullet points for action items.`
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <div className="text-center">
           <Sparkles className="mx-auto mb-3 size-10 opacity-30" />
-          <p className="text-sm">Select a project to start chatting</p>
+          <p className="text-sm">Open a project from the graph to start chatting</p>
         </div>
       </div>
     )
@@ -522,13 +493,32 @@ Be concise, direct, practical. Use bullet points for action items.`
               </div>
             )}
             <div
-              className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
                 msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground whitespace-pre-wrap"
                   : "bg-secondary text-foreground"
               }`}
             >
-              {msg.content || (loading && i === messages.length - 1 ? "…" : "")}
+              {msg.role === "user" ? (
+                msg.content || (loading && i === messages.length - 1 ? "…" : "")
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                    em: ({ children }) => <em className="italic">{children}</em>,
+                    ul: ({ children }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
+                    li: ({ children }) => <li>{children}</li>,
+                    code: ({ children }) => <code className="bg-black/10 rounded px-1 text-xs font-mono">{children}</code>,
+                    h1: ({ children }) => <p className="font-bold mb-1">{children}</p>,
+                    h2: ({ children }) => <p className="font-bold mb-1">{children}</p>,
+                    h3: ({ children }) => <p className="font-semibold mb-0.5">{children}</p>,
+                  }}
+                >
+                  {msg.content || (loading && i === messages.length - 1 ? "…" : "")}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         ))}
@@ -565,9 +555,7 @@ export function CompanionPage() {
   const { selectedProjectId } = useAppStore()
   const [milestones, setMilestones] = useState<Milestone[]>([])
 
-  const project = selectedProjectId
-    ? (projects.find((p) => p.id === selectedProjectId) ?? null)
-    : null
+  const project = (selectedProjectId ? projects.find((p) => p.id === selectedProjectId) : null) ?? projects[0]
 
   // Reset milestones when project changes
   useEffect(() => {
@@ -588,14 +576,18 @@ export function CompanionPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <header className="flex items-center gap-4 px-6 py-4 border-b flex-shrink-0">
-        <ProjectSelector />
+      <header className="flex items-center gap-3 px-6 py-3 border-b flex-shrink-0">
+        <span className="text-sm font-semibold">Companion</span>
         {project && (
-          <span className="text-sm text-muted-foreground ml-auto">
-            State: <span className="font-medium text-foreground">{stateLabel(project.state)}</span>
-          </span>
+          <>
+            <div className="h-4 w-px bg-border" />
+            <span className="text-sm text-muted-foreground truncate">{project.title}</span>
+            <span className="ml-auto text-sm text-muted-foreground flex-shrink-0">
+              State: <span className="font-medium text-foreground">{stateLabel(project.state)}</span>
+            </span>
+          </>
         )}
       </header>
 
@@ -613,7 +605,7 @@ export function CompanionPage() {
 
         {/* Chat — 38% */}
         <div className="flex-[38] flex flex-col px-6 py-6">
-          <CompanionChat project={project} timelineEvents={timelineEvents} />
+          <CompanionChat key={project?.id ?? 'none'} project={project} timelineEvents={timelineEvents} />
         </div>
       </div>
     </div>

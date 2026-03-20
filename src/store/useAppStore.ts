@@ -5,13 +5,13 @@ export type SidebarPanel =
   'graph' | 'bookmarks' | 'compare' | 'search' | 'thesis-graph' |
   'literature' | 'experts' | 'resources' | 'notes' |
   'outline' | 'editor' | 'citations' | 'ai-assist' |
-  'checklist' | 'formatting' | 'submission' | 'feedback' |
+  'companion' | 'checklist' | 'formatting' | 'submission' | 'feedback' |
   'reviews' | 'revisions' | 'publish' | 'archive'
 
 interface AppState {
   // Navigation
   currentView: AppView
-  currentPhase: 1 | 2 | 3 | 4 | 5 | 6
+  currentPhase: 1 | 2 | 3 | 4 | 5
   currentPanel: SidebarPanel
 
   // Onboarding
@@ -51,7 +51,7 @@ interface AppState {
   moveBookmark: (topicId: string, direction: 'up' | 'down') => void
   toggleCompare: (topicId: string) => void
   setCurrentPanel: (panel: SidebarPanel) => void
-  setCurrentPhase: (phase: 1 | 2 | 3 | 4 | 5 | 6) => void
+  setCurrentPhase: (phase: 1 | 2 | 3 | 4 | 5) => void
   setPlannedTopic: (id: string | null) => void
   setSuggestedFieldIds: (ids: string[]) => void
   setSuggestionsLoading: (v: boolean) => void
@@ -100,13 +100,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleField: (id) => {
     const { selectedFieldIds } = get()
     const isSelected = selectedFieldIds.includes(id)
-    let next: string[]
-    if (isSelected) {
-      next = selectedFieldIds.filter(f => f !== id)
-    } else {
-      if (selectedFieldIds.length >= 1) return
-      next = [...selectedFieldIds, id]
-    }
+    const next = isSelected ? [] : [id]
     set({ selectedFieldIds: next, selectedSourceIds: [], activeTopicId: null })
   },
 
@@ -170,7 +164,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setCurrentPhase: (phase) => {
     const defaultPanels: Record<number, SidebarPanel> = {
-      1: 'graph', 2: 'thesis-graph', 3: 'outline', 4: 'checklist', 5: 'reviews',
+      1: 'graph', 2: 'thesis-graph', 3: 'outline', 4: 'companion', 5: 'reviews',
     }
     set({ currentPhase: phase, currentPanel: defaultPanels[phase], activeTopicId: null, activeSourceId: null })
   },

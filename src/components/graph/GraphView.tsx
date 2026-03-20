@@ -307,7 +307,7 @@ function GraphCanvas() {
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith('topic-')) {
       const topicId = node.id.replace('topic-', '')
-      store.setActiveTopic(store.activeTopicId === topicId ? null : topicId)
+      store.setActiveTopic(topicId)
     }
   }, [store])
 
