@@ -216,10 +216,7 @@ export function ResearchPage() {
   )
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<ResearchNodeData>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>(
-    () => {
-      const p = activeTopicId ? persistedGraphs.get(activeTopicId) : null
-      return p?.edges ?? []
-    }
+    (activeTopicId ? persistedGraphs.get(activeTopicId)?.edges : undefined) ?? []
   )
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>(

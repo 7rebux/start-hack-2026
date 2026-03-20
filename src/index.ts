@@ -1,3 +1,7 @@
+interface Fetcher {
+  fetch(request: Request): Promise<Response>;
+}
+
 export interface Env {
   ANTHROPIC_API_KEY: string;
   ASSETS: Fetcher;
