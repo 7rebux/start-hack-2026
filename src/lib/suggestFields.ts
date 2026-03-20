@@ -5,9 +5,6 @@ export async function suggestFields(
   fieldNames: string[],
   fieldIds: string[],
 ): Promise<string[]> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  if (!apiKey) return []
-
   const prompt = `You are helping a university student find a thesis topic.
 Student: ${degreeName} in "${programName}" at ${universityName}.
 Available fields:
@@ -16,13 +13,10 @@ ${fieldNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}
 Return a JSON array of exactly 3 field names (verbatim from the list above) most relevant to this student's degree, ordered by relevance. Respond with ONLY the JSON array, no other text.`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('/api/ai/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
