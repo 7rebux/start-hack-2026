@@ -10,24 +10,25 @@ export function PhasesBar() {
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-md">
         {PHASES.map((phase, idx) => {
           const isActive = currentPhase === phase.id
+          const notClickable = phase.disabled || (phase.id === 3 && currentPhase !== 3)
           return (
             <div key={phase.id} className="flex items-center gap-1">
               {idx > 0 && (
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground/30" />
               )}
               <button
-                onClick={phase.disabled ? undefined : () => setCurrentPhase(phase.id)}
-                disabled={phase.disabled}
+                onClick={notClickable ? undefined : () => setCurrentPhase(phase.id)}
+                disabled={notClickable}
                 className="rounded-full px-3 py-1 ds-caption font-medium transition-all duration-150"
                 style={
                   isActive
                     ? { backgroundColor: phase.color, color: '#fff' }
-                    : phase.disabled
+                    : notClickable
                     ? { color: 'var(--muted-foreground)', opacity: 0.4, cursor: 'not-allowed' }
                     : { color: 'var(--muted-foreground)' }
                 }
               >
-                {phase.name}
+                {idx + 1}. {phase.name}
               </button>
             </div>
           )
