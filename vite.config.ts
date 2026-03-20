@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import path, { resolve } from 'path'
 import { readFileSync } from 'fs'
 import { defineConfig, type Plugin } from 'vite'
@@ -6,6 +7,11 @@ import { defineConfig, type Plugin } from 'vite'
 import path from 'path'
 import { defineConfig } from 'vite'
 >>>>>>> 736d217 (cf setup)
+=======
+import path, { resolve } from 'path'
+import { readFileSync } from 'fs'
+import { defineConfig, type Plugin } from 'vite'
+>>>>>>> e900999 (fix deployment)
 import { cloudflare } from '@cloudflare/vite-plugin'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -78,10 +84,14 @@ function anthropicDevProxy(): Plugin {
 
 export default defineConfig({
 <<<<<<< HEAD
+<<<<<<< HEAD
   plugins: [anthropicDevProxy(), react(), tailwindcss(), cloudflare()],
 =======
   plugins: [react(), tailwindcss(), cloudflare()],
 >>>>>>> 736d217 (cf setup)
+=======
+  plugins: [anthropicDevProxy(), react(), tailwindcss(), cloudflare()],
+>>>>>>> e900999 (fix deployment)
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

@@ -23,11 +23,7 @@ import studyondLogo from "@/assets/studyond.svg"
 // ── Anthropic client ──────────────────────────────────────────────────────────
 const client = new Anthropic({
   apiKey: 'not-needed',
-<<<<<<< HEAD
   baseURL: `${window.location.origin}/api/ai`,
-=======
-  baseURL: '/api/ai',
->>>>>>> b508153 (implement server side anthropic key and local node dev)
   dangerouslyAllowBrowser: true,
 })
 
