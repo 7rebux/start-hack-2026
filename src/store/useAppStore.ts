@@ -19,7 +19,7 @@ interface AppState {
   selectedProgramId: string | null
 
   // Graph selections
-  selectedFieldIds: string[]       // max 3
+  selectedFieldIds: string[]       // max 1
   selectedSourceIds: string[]      // university or company IDs
 
   // Topic detail / bookmarks
@@ -101,7 +101,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (isSelected) {
       next = selectedFieldIds.filter(f => f !== id)
     } else {
-      if (selectedFieldIds.length >= 3) return
+      if (selectedFieldIds.length >= 1) return
       next = [...selectedFieldIds, id]
     }
     set({ selectedFieldIds: next, selectedSourceIds: [], activeTopicId: null })

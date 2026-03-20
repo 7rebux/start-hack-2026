@@ -362,7 +362,7 @@ function GraphCanvas() {
 
         {/* Contextual hint */}
         <p className="ds-caption rounded-lg bg-background/80 px-3 py-2 text-muted-foreground backdrop-blur-sm border border-border">
-          {graphLevel === 1 && 'Select up to 3 fields of interest to begin'}
+          {graphLevel === 1 && 'Select a field of interest to begin'}
           {graphLevel === 2 && 'Click to select a source · double-click for details'}
           {graphLevel === 3 && 'Click a topic to preview · double-click a source for full profile'}
         </p>

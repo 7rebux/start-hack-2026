@@ -1,13 +1,15 @@
 import { Handle, Position } from "reactflow";
 import type { Company } from "../../types/booking";
+import { useActiveNodeId } from "../../pages/TopicViewPage";
 
 interface CompanyNodeProps {
   data: Company;
 }
 
 export default function CompanyNode({ data }: CompanyNodeProps) {
+  const isActive = useActiveNodeId() === data.id;
   return (
-    <div className="bg-white border border-rose-200 rounded-xl shadow-lg p-5 w-[320px]">
+    <div className={`bg-white rounded-xl shadow-lg p-5 w-[320px] border-2 transition-colors ${isActive ? "border-rose-500" : "border-rose-200"}`}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
 
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -18,11 +20,7 @@ export default function CompanyNode({ data }: CompanyNodeProps) {
       </div>
 
 
-      {data.about && (
-        <p className="text-xs text-gray-600 leading-relaxed mb-2">{data.about}</p>
-      )}
-
-      <p className="text-xs font-medium text-rose-600 mb-3">{data.size} employees</p>
+      <p className="text-xs text-gray-400 mb-3">{data.size} employees</p>
 
       <div className="flex flex-wrap gap-1.5">
         {data.domains.map((domain) => (

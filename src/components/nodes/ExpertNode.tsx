@@ -1,16 +1,15 @@
 import { Handle, Position } from "reactflow";
-import { useNavigate } from "react-router-dom";
 import type { Expert } from "../../types/booking";
+import { useActiveNodeId } from "../../pages/TopicViewPage";
 
 interface ExpertNodeProps {
   data: Expert & { fieldNames: string[] };
 }
 
 export default function ExpertNode({ data }: ExpertNodeProps) {
-  const navigate = useNavigate();
-
+  const isActive = useActiveNodeId() === data.id;
   return (
-    <div className="bg-white border border-emerald-200 rounded-xl shadow-lg p-5 w-[320px]">
+    <div className={`bg-white rounded-xl shadow-lg p-5 w-[320px] border-2 transition-colors ${isActive ? "border-emerald-500" : "border-emerald-200"}`}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
@@ -23,9 +22,6 @@ export default function ExpertNode({ data }: ExpertNodeProps) {
           Expert
         </span>
       </div>
-      {data.about && (
-        <p className="text-xs text-gray-600 leading-relaxed mb-3">{data.about}</p>
-      )}
       <p className="text-xs text-emerald-600 mb-2">{data.email}</p>
       <div className="flex flex-wrap gap-1.5">
         {data.fieldNames.map((name) => (
@@ -37,13 +33,6 @@ export default function ExpertNode({ data }: ExpertNodeProps) {
           </span>
         ))}
       </div>
-      {/* TODO: We are ignoring if the expert is offering interviews for simplicity */}
-      <button
-        onClick={() => navigate(`/schedule/${data.id}`)}
-        className="mt-3 w-full text-xs font-medium px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-      >
-        Book interview
-      </button>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
     </div>
   );

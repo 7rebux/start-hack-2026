@@ -1,13 +1,15 @@
 import { Handle, Position } from "reactflow"
 import type { Supervisor } from "../../types/entities"
+import { useActiveNodeId } from "../../pages/TopicViewPage"
 
 interface SupervisorNodeProps {
   data: Supervisor & { fieldNames: string[] }
 }
 
 export default function SupervisorNode({ data }: SupervisorNodeProps) {
+  const isActive = useActiveNodeId() === data.id
   return (
-    <div className="bg-white border border-violet-200 rounded-xl shadow-lg p-5 w-[320px]">
+    <div className={`bg-white rounded-xl shadow-lg p-5 w-[320px] border-2 transition-colors ${isActive ? "border-violet-500" : "border-violet-200"}`}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
 
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -16,6 +18,11 @@ export default function SupervisorNode({ data }: SupervisorNodeProps) {
           Supervisor
         </span>
       </div>
+      {data.researchInterests.length > 0 && (
+        <p className="text-xs text-gray-400 mb-2">
+          {data.researchInterests.slice(0, 2).map((r) => r.replace(/\b\w/g, (c) => c.toUpperCase())).join(" · ")}
+        </p>
+      )}
       <p className="text-xs text-violet-600 mb-2">{data.email}</p>
 
       <div className="flex flex-wrap gap-1.5 mb-2">
@@ -39,13 +46,6 @@ export default function SupervisorNode({ data }: SupervisorNodeProps) {
           </span>
         ))}
       </div>
-
-      <a
-        href={`mailto:${data.email}`}
-        className="mt-3 block w-full text-center text-xs font-medium px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors"
-      >
-        Send message
-      </a>
 
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
     </div>

@@ -1,13 +1,15 @@
 import { Handle, Position } from "reactflow";
 import type { University } from "../../types/entities";
+import { useActiveNodeId } from "../../pages/TopicViewPage";
 
 interface UniversityNodeProps {
   data: University;
 }
 
 export default function UniversityNode({ data }: UniversityNodeProps) {
+  const isActive = useActiveNodeId() === data.id;
   return (
-    <div className="bg-white border border-amber-200 rounded-xl shadow-lg p-5 w-[320px]">
+    <div className={`bg-white rounded-xl shadow-lg p-5 w-[320px] border-2 transition-colors ${isActive ? "border-amber-500" : "border-amber-200"}`}>
       <Handle type="target" position={Position.Top} className="opacity-0" />
 
       <div className="flex items-start justify-between gap-3 mb-2">
@@ -16,10 +18,6 @@ export default function UniversityNode({ data }: UniversityNodeProps) {
           University
         </span>
       </div>
-
-{data.about && (
-        <p className="text-xs text-gray-600 leading-relaxed mb-3">{data.about}</p>
-      )}
 
       <a
         href={`https://${data.domains[0]}`}
