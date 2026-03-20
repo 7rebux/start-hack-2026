@@ -168,7 +168,7 @@ export function OnboardingPage() {
             >
               <Button
                 size="lg"
-                className="bg-ai w-full h-12 rounded-xl text-base font-medium"
+                className="w-full h-12 rounded-xl text-base font-medium"
                 onClick={enterGraph}
               >
                 Explore thesis graph
