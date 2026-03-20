@@ -4,12 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+<<<<<<< HEAD
     "dev": "node node_modules/vite/bin/vite.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "bun run build && vite preview",
     "deploy": "bun run build && wrangler deploy",
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+=======
+    "dev": "vite dev",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "bun run build && vite preview",
+    "deploy": "bun run build && wrangler deploy"
+>>>>>>> 736d217 (cf setup)
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",

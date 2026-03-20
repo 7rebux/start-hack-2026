@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export interface Env {
   ANTHROPIC_API_KEY: string;
 }
@@ -42,3 +43,10 @@ export default {
     return new Response('Not Found', { status: 404 });
   },
 };
+=======
+export default {
+    fetch() {
+      return new Response(`Running in ${navigator.userAgent}!`);
+    },
+  };
+>>>>>>> 736d217 (cf setup)
