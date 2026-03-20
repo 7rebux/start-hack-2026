@@ -1,6 +1,6 @@
 import { Handle, Position } from "reactflow";
 import type { Project } from "../../types/entities";
-import { useActiveNodeId } from "../../pages/TopicViewPage";
+import { useActiveNodeId } from "../graph/MultiTopicFlow";
 
 const stateBadge: Record<Project["state"], string> = {
   proposed: "bg-amber-100 text-amber-700",

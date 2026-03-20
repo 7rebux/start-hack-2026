@@ -1,6 +1,6 @@
 import { Handle, Position } from "reactflow"
 import type { Topic } from "../../types/topic"
-import { useActiveNodeId } from "../../pages/TopicViewPage"
+import { useActiveNodeId } from "../graph/MultiTopicFlow"
 
 const employmentTypeLabel: Record<string, string> = {
   internship: "Internship",

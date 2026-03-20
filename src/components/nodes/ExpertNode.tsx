@@ -1,6 +1,6 @@
 import { Handle, Position } from "reactflow";
 import type { Expert } from "../../types/booking";
-import { useActiveNodeId } from "../../pages/TopicViewPage";
+import { useActiveNodeId } from "../graph/MultiTopicFlow";
 
 interface ExpertNodeProps {
   data: Expert & { fieldNames: string[] };

@@ -1,6 +1,6 @@
 import { Handle, Position } from "reactflow"
 import type { Supervisor } from "../../types/entities"
-import { useActiveNodeId } from "../../pages/TopicViewPage"
+import { useActiveNodeId } from "../graph/MultiTopicFlow"
 
 interface SupervisorNodeProps {
   data: Supervisor & { fieldNames: string[] }

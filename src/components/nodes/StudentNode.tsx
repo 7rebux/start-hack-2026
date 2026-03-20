@@ -1,6 +1,6 @@
 import { Handle, Position } from "reactflow"
 import type { Student } from "../../types/entities"
-import { useActiveNodeId } from "../../pages/TopicViewPage"
+import { useActiveNodeId } from "../graph/MultiTopicFlow"
 
 interface StudentNodeProps {
   data: Student

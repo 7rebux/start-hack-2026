@@ -34,9 +34,6 @@ interface AppState {
   suggestedFieldIds: string[]
   suggestionsLoading: boolean
 
-  // Thesis graph
-  thesisGraphTopicId: string | null
-
   // Actions
   setUniversityId: (id: string) => void
   setProgramId: (id: string) => void
@@ -53,7 +50,6 @@ interface AppState {
   setCurrentPhase: (phase: 1 | 2 | 3 | 4 | 5 | 6) => void
   setSuggestedFieldIds: (ids: string[]) => void
   setSuggestionsLoading: (v: boolean) => void
-  setThesisGraphTopicId: (id: string | null) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -74,8 +70,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   suggestedFieldIds: [],
   suggestionsLoading: false,
-
-  thesisGraphTopicId: null,
 
   setUniversityId: (id) => set({ selectedUniversityId: id, selectedProgramId: null, suggestedFieldIds: [], suggestionsLoading: false }),
 
@@ -174,7 +168,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSuggestedFieldIds: (ids) => set({ suggestedFieldIds: ids }),
   setSuggestionsLoading: (v) => set({ suggestionsLoading: v }),
-  setThesisGraphTopicId: (id) => set({ thesisGraphTopicId: id }),
 }))
 
 // Pure derived selector — 3 levels: fields → sources → topics
