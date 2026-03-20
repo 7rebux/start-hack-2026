@@ -122,9 +122,9 @@ export function GraphPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Main content area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
         {/* Pages */}
-        <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0">
         <AnimatePresence mode="wait">
           {/* Phase 1 — Find */}
           {currentPanel === 'graph' && (
@@ -232,8 +232,12 @@ export function GraphPage() {
         </AnimatePresence>
         </div>
 
-        {/* Phases bar — in flow, no overlap */}
-        <PhasesBar />
+        {/* Phases bar — overlaid at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
+          <div className="pointer-events-auto">
+            <PhasesBar />
+          </div>
+        </div>
       </div>
 
       {/* Detail panels — only one visible at a time */}

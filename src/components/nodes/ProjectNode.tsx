@@ -1,7 +1,6 @@
 import { Handle, Position } from "reactflow";
 import type { Project } from "../../types/entities";
 import { useActiveNodeId } from "../graph/MultiTopicFlow";
-import { useAppStore } from "../../store/useAppStore";
 
 const stateBadge: Record<Project["state"], string> = {
   proposed: "bg-amber-100 text-amber-700",
@@ -29,13 +28,6 @@ interface ProjectNodeProps {
 
 export default function ProjectNode({ data }: ProjectNodeProps) {
   const isActive = useActiveNodeId() === data.id;
-  const { setSelectedProjectId, setCurrentPhase } = useAppStore();
-
-  function openCompanion(e: React.MouseEvent) {
-    e.stopPropagation();
-    setSelectedProjectId(data.id);
-    setCurrentPhase(4);
-  }
 
   return (
     <div className={`bg-white rounded-xl shadow-lg p-5 w-[320px] border-2 transition-colors ${isActive ? "border-slate-500" : "border-slate-200"}`}>
@@ -59,12 +51,6 @@ export default function ProjectNode({ data }: ProjectNodeProps) {
           className="flex-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1"
         >
           <span>{data.expanded ? "▲ Hide Details" : "▼ Show Details"}</span>
-        </button>
-        <button
-          onClick={openCompanion}
-          className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"
-        >
-          Companion →
         </button>
       </div>
       <Handle type="source" position={Position.Bottom} className="opacity-0" />
