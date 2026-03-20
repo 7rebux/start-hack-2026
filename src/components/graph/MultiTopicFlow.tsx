@@ -412,14 +412,9 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [, setRfInstance] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rfInstanceRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activeNode, setActiveNode] = useState<{ type: string; data: any } | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rfNodesRef = useRef<any[]>(rfNodes);
-  useEffect(() => { rfNodesRef.current = rfNodes; }, [rfNodes]);
   const isFirstLayout = useRef(true);
 
   // Reset expand state when topicIds change
@@ -541,44 +536,8 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
       const first = isFirstLayout.current;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       applyElkLayout(visibleNodes, visibleEdges).then((layoutedNodes: any[]) => {
-        let finalNodes = layoutedNodes;
-
-        if (!first) {
-          const currentPositions = new Map(
-            rfNodesRef.current
-              .filter((n) => !n.hidden)
-              .map((n) => [n.id, n.position]),
-          );
-
-          // Per-topic offset: how far the topic root has moved from ELK's position.
-          // New children for that topic are shifted by the same delta so they
-          // appear near their root instead of at ELK's origin-relative position.
-          const topicOffsets = new Map<string, { dx: number; dy: number }>();
-          for (const topicId of topicIds) {
-            const current = currentPositions.get(topicId);
-            const elk = layoutedNodes.find((n) => n.id === topicId)?.position;
-            if (current && elk) {
-              topicOffsets.set(topicId, { dx: current.x - elk.x, dy: current.y - elk.y });
-            }
-          }
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const ownerTopic = (nodeId: string): string | undefined =>
-            [...(nodeParentTopics.get(nodeId) ?? [])].at(0) ??
-            projectToTopic.get(nodeId) ??
-            projectToTopic.get(projectNodeMap.get(nodeId) ?? "");
-
-          finalNodes = layoutedNodes.map((n) => {
-            if (currentPositions.has(n.id)) {
-              return { ...n, position: currentPositions.get(n.id) };
-            }
-            const offset = topicOffsets.get(ownerTopic(n.id) ?? "");
-            if (offset) {
-              return { ...n, position: { x: n.position.x + offset.dx, y: n.position.y + offset.dy } };
-            }
-            return n;
-          });
-        }
+        // Always use ELK positions so nodes move apart when new ones appear.
+        const finalNodes = layoutedNodes;
 
         setRfNodes(finalNodes as never[]);
         setRfEdges(visibleEdges as never[]);
@@ -592,7 +551,7 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
         }
       });
     },
-    [visibleNodes, visibleEdges, setRfNodes, setRfEdges, topicIds, nodeParentTopics, projectToTopic, projectNodeMap],
+    [visibleNodes, visibleEdges, setRfNodes, setRfEdges],
   );
 
   useEffect(() => {
