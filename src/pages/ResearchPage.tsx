@@ -219,6 +219,7 @@ export function ResearchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plannedTopicId])
 
+
   const selectNode = useCallback((id: string) => {
     setSelectedNodeId((prev) => (prev === id ? null : id))
   }, [])
