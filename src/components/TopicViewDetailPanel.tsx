@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { X, Building2, GraduationCap, Mail, Globe, Briefcase } from 'lucide-react'
+import { X, Building2, Mail, Globe, Briefcase } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 interface TopicViewDetailPanelProps {

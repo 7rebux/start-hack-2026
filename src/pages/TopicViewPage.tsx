@@ -368,7 +368,7 @@ function TopicFlow({ topic }: { topic: Topic }) {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [rfInstance, setRfInstance] = useState<any>(null);
+  const [, setRfInstance] = useState<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rfInstanceRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

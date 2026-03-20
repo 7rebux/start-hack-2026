@@ -132,7 +132,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full"
+              className="h-full w-full pt-16"
             >
               <GraphView />
             </motion.div>
@@ -144,7 +144,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full"
+              className="h-full w-full pt-16"
             >
               <BookmarksView />
             </motion.div>
@@ -156,7 +156,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full"
+              className="h-full w-full pt-16"
             >
               <ThesisGraphPage />
             </motion.div>
@@ -168,7 +168,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full"
+              className="h-full w-full pt-16"
             >
               <ComparePage />
             </motion.div>
@@ -180,56 +180,14 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full"
+              className="h-full w-full pt-16"
             >
               <SearchPage />
             </motion.div>
           )}
 
-          {/* Phase 2 — Research */}
-          {!isPhase1Panel && currentPhase === 2 && (
-            <motion.div
-              key={currentPanel}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
-            >
-              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
-            </motion.div>
-          )}
-
-          {/* Phase 3 — Write */}
-          {currentPhase === 3 && (
-            <motion.div
-              key={currentPanel}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
-            >
-              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
-            </motion.div>
-          )}
-
-          {/* Phase 4 — Submit */}
-          {currentPhase === 4 && (
-            <motion.div
-              key={currentPanel}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
-            >
-              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
-            </motion.div>
-          )}
-
-          {/* Phase 5 — Publish */}
-          {currentPhase === 5 && (
+          {/* Phase 2–5 placeholders */}
+          {!isPhase1Panel && (
             <motion.div
               key={currentPanel}
               initial={{ opacity: 0 }}
