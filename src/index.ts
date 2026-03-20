@@ -1,5 +1,6 @@
 export interface Env {
   ANTHROPIC_API_KEY: string;
+  ASSETS: Fetcher;
 }
 
 export default {
@@ -39,6 +40,11 @@ export default {
       });
     }
 
-    return new Response('Not Found', { status: 404 });
+    // SPA fallback: serve index.html for all non-asset routes
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (assetResponse.status === 404) {
+      return env.ASSETS.fetch(new Request(new URL('/', request.url).toString(), request));
+    }
+    return assetResponse;
   },
 };

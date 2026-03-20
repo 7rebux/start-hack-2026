@@ -8,7 +8,7 @@ import {
   Star, GitPullRequest, Globe, Archive,
 } from 'lucide-react'
 
-export type PhaseId = 1 | 2 | 3 | 4 | 5 | 6
+export type PhaseId = 1 | 2 | 3 | 4 | 5
 
 export interface PhaseItem {
   panel: SidebarPanel
@@ -60,10 +60,10 @@ export const PHASES: PhaseConfig[] = [
     ],
   },
   {
-    id: 4, name: 'Thesis Companion', color: '#e11d48', lightBg: 'rgba(225,29,72,0.10)',
-    defaultPanel: 'checklist',
-    disabled: true,
+    id: 4, name: 'Companion', color: '#e11d48', lightBg: 'rgba(225,29,72,0.10)',
+    defaultPanel: 'companion',
     items: [
+      { panel: 'companion',  label: 'Companion',  icon: Sparkles },
       { panel: 'checklist',  label: 'Checklist',  icon: CheckSquare },
       { panel: 'formatting', label: 'Formatting', icon: FileCheck },
       { panel: 'submission', label: 'Submission', icon: SendHorizontal },
@@ -71,7 +71,7 @@ export const PHASES: PhaseConfig[] = [
     ],
   },
   {
-    id: 5, name: 'Submit', color: '#7c3aed', lightBg: 'rgba(124,58,237,0.10)',
+    id: 5, name: 'Wrap Up', color: '#7c3aed', lightBg: 'rgba(124,58,237,0.10)',
     defaultPanel: 'reviews',
     disabled: true,
     items: [
@@ -79,14 +79,6 @@ export const PHASES: PhaseConfig[] = [
       { panel: 'revisions', label: 'Revisions', icon: GitPullRequest },
       { panel: 'publish',   label: 'Publish',   icon: Globe },
       { panel: 'archive',   label: 'Archive',   icon: Archive },
-    ],
-  },
-  {
-    id: 6, name: 'Publish', color: '#6b7280', lightBg: 'rgba(107,114,128,0.10)',
-    defaultPanel: 'archive',
-    disabled: true,
-    items: [
-      { panel: 'archive', label: 'Archive', icon: Archive },
     ],
   },
 ]

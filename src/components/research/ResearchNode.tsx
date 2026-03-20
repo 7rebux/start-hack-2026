@@ -7,9 +7,11 @@ export interface ResearchNodeData {
   description: string
   color: string
   isRoot?: boolean
+  isProject?: boolean
   isSelected?: boolean
   onDelete?: (id: string) => void
   onSelect?: (id: string) => void
+  onOpenCompanion?: () => void
 }
 
 export function ResearchNode({ data }: { data: ResearchNodeData }) {
@@ -41,6 +43,14 @@ export function ResearchNode({ data }: { data: ResearchNodeData }) {
         </div>
         {data.description && (
           <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{data.description}</p>
+        )}
+        {data.isProject && data.onOpenCompanion && (
+          <button
+            onClick={(e) => { e.stopPropagation(); data.onOpenCompanion!() }}
+            className="mt-2 w-full text-xs font-medium px-2 py-1 rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-colors"
+          >
+            Companion →
+          </button>
         )}
       </div>
 
