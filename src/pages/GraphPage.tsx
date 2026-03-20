@@ -234,7 +234,7 @@ export function GraphPage() {
 
         {/* Phases bar — overlaid at bottom */}
         <div className="absolute bottom-0 left-0 right-0 pointer-events-none">
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto w-fit mx-auto">
             <PhasesBar />
           </div>
         </div>
