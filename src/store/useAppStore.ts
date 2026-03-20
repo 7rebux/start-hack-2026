@@ -166,7 +166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const defaultPanels: Record<number, SidebarPanel> = {
       1: 'graph', 2: 'thesis-graph', 3: 'outline', 4: 'checklist', 5: 'reviews',
     }
-    set({ currentPhase: phase, currentPanel: defaultPanels[phase] })
+    set({ currentPhase: phase, currentPanel: defaultPanels[phase], activeTopicId: null, activeSourceId: null })
   },
 
   setSuggestedFieldIds: (ids) => set({ suggestedFieldIds: ids }),
