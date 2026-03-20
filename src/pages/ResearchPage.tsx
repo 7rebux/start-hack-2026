@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import ReactFlow, {
   Background,
   Controls,
@@ -23,7 +23,7 @@ import studyondLogo from "@/assets/studyond.svg"
 // ── Anthropic client ──────────────────────────────────────────────────────────
 const client = new Anthropic({
   apiKey: 'not-needed',
-  baseURL: '/api/ai',
+  baseURL: `${window.location.origin}/api/ai`,
   dangerouslyAllowBrowser: true,
 })
 
@@ -202,6 +202,9 @@ export function ResearchPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const conversationRef = useRef<Anthropic.MessageParam[]>([])
   const knownNodeIds = useRef<Set<string>>(new Set(["root"]))
+
+  const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), [])
+
   // Persists ELK-computed positions so re-renders don't reset them to {0,0}
   const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
 
@@ -483,7 +486,7 @@ export function ResearchPage() {
           edges={rfEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
+          nodeTypes={memoNodeTypes}
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
           fitViewOptions={{ padding: 0.2 }}

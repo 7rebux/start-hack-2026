@@ -1,4 +1,4 @@
-import { useEffect, memo } from 'react'
+import { useEffect, memo, useMemo } from 'react'
 import studyondLogo from '@/assets/studyond.svg'
 import {
   ReactFlow,
@@ -255,6 +255,9 @@ function ThesisGraphCanvas({ topicId }: { topicId: string }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
+  const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), [])
+  const memoEdgeTypes = useMemo(() => ({ ...edgeTypes }), [])
+
   useEffect(() => {
     const { nodes: n, edges: e } = buildThesisGraph(topicId)
     setNodes(n)
@@ -272,8 +275,8 @@ function ThesisGraphCanvas({ topicId }: { topicId: string }) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        nodeTypes={memoNodeTypes}
+        edgeTypes={memoEdgeTypes}
         proOptions={{ hideAttribution: true }}
         fitView
         fitViewOptions={{ padding: 0.25 }}

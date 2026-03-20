@@ -406,6 +406,10 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
     topicEdgeSets,
   } = useMemo(() => buildMultiGraph(topicIds), [topicIds]);
 
+  // React Flow warns if `nodeTypes` is a different object reference between renders.
+  // Keep the mapping referentially stable.
+  const memoNodeTypes = useMemo(() => ({ ...nodeTypes }), []);
+
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
@@ -607,7 +611,7 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
             edges={rfEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
+            nodeTypes={memoNodeTypes}
             proOptions={{ hideAttribution: true }}
             onInit={(instance) => {
               rfInstanceRef.current = instance;
