@@ -132,7 +132,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <GraphView />
             </motion.div>
@@ -144,7 +144,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <BookmarksView />
             </motion.div>
@@ -156,7 +156,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <ThesisGraphPage />
             </motion.div>
@@ -168,7 +168,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <ComparePage />
             </motion.div>
@@ -180,7 +180,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <SearchPage />
             </motion.div>
@@ -208,7 +208,7 @@ export function GraphPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full pt-16"
+              className="h-full w-full"
             >
               <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
             </motion.div>
