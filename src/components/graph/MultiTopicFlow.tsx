@@ -571,7 +571,6 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
             proOptions={{ hideAttribution: true }}
             onInit={(instance) => {
               rfInstanceRef.current = instance;
-              setRfInstance(instance);
             }}
             nodesConnectable={false}
             elementsSelectable={false}
