@@ -22,7 +22,8 @@ import studyondLogo from "@/assets/studyond.svg"
 
 // ── Anthropic client ──────────────────────────────────────────────────────────
 const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
+  apiKey: 'not-needed',
+  baseURL: '/api/ai',
   dangerouslyAllowBrowser: true,
 })
 

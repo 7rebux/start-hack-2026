@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Sparkles, Send } from "lucide-react"
 
 const client = new Anthropic({
-  apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
+  apiKey: 'not-needed',
+  baseURL: '/api/ai',
   dangerouslyAllowBrowser: true,
 })
 
