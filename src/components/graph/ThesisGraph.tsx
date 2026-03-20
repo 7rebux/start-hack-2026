@@ -1,8 +1,10 @@
 import { useEffect, memo } from 'react'
+import studyondLogo from '@/assets/studyond.svg'
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  Panel,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -279,6 +281,9 @@ function ThesisGraphCanvas({ topicId }: { topicId: string }) {
         maxZoom={2}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border)" />
+        <Panel position="bottom-right">
+          <img src={studyondLogo} alt="Studyond" className="h-6 opacity-60 pointer-events-none" />
+        </Panel>
       </ReactFlow>
 
       {/* Legend */}

@@ -50,7 +50,7 @@ export const PHASES: PhaseConfig[] = [
     ],
   },
   {
-    id: 3, name: 'Plan', color: '#d97706', lightBg: 'rgba(217,119,6,0.10)',
+    id: 3, name: 'Research', color: '#d97706', lightBg: 'rgba(217,119,6,0.10)',
     defaultPanel: 'outline',
     items: [
       { panel: 'outline',   label: 'Outline',      icon: ListTree },

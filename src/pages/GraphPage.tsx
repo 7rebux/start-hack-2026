@@ -8,11 +8,13 @@ import { SourceDetailPanel } from '@/components/SourceDetailPanel'
 import { ComparePage } from '@/pages/ComparePage'
 import { SearchPage } from '@/pages/SearchPage'
 import { ThesisGraphPage } from '@/pages/ThesisGraphPage'
+import { ResearchPage } from '@/pages/ResearchPage'
 import { topicById, companyById, supervisorById, fieldById } from '@/data/index'
 import { PHASES } from '@/data/phases'
 import { Badge } from '@/components/ui/badge'
 
 const PHASE1_PANELS = new Set(['graph', 'bookmarks', 'thesis-graph', 'compare', 'search'])
+const PHASE3_PANELS = new Set(['outline', 'editor', 'citations', 'ai-assist'])
 
 function BookmarksView() {
   const { bookmarkedTopicIds, setActiveTopic, toggleBookmark } = useAppStore()
@@ -112,6 +114,7 @@ export function GraphPage() {
 
   const phase = PHASES.find(p => p.id === currentPhase) ?? PHASES[0]
   const isPhase1Panel = PHASE1_PANELS.has(currentPanel)
+  const isPhase3Panel = PHASE3_PANELS.has(currentPanel)
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -183,8 +186,22 @@ export function GraphPage() {
             </motion.div>
           )}
 
-          {/* Phase 2–5 placeholders */}
-          {!isPhase1Panel && (
+          {/* Phase 3 — Plan */}
+          {isPhase3Panel && (
+            <motion.div
+              key="research"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              <ResearchPage />
+            </motion.div>
+          )}
+
+          {/* Phase 2, 4–5 placeholders */}
+          {!isPhase1Panel && !isPhase3Panel && (
             <motion.div
               key={currentPanel}
               initial={{ opacity: 0 }}
@@ -198,6 +215,7 @@ export function GraphPage() {
           )}
         </AnimatePresence>
       </div>
+
 
       {/* Detail panels — only one visible at a time */}
       <AnimatePresence>

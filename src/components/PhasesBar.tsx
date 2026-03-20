@@ -6,7 +6,7 @@ export function PhasesBar() {
   const { currentPhase, setCurrentPhase } = useAppStore()
 
   return (
-    <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center">
+    <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center">
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border/60 bg-background/75 px-3 py-2 shadow-lg backdrop-blur-md">
         {PHASES.map((phase, idx) => {
           const isActive = currentPhase === phase.id

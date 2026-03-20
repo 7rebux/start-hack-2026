@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import ReactFlow, {
   Background,
   Controls,
+  Panel,
   useNodesState,
   useEdgesState,
   ConnectionLineType,
@@ -15,6 +16,9 @@ import ReactMarkdown from "react-markdown"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ResearchNode, type ResearchNodeData } from "../components/research/ResearchNode"
+import { useAppStore } from "@/store/useAppStore"
+import { topicById } from "@/data/index"
+import studyondLogo from "@/assets/studyond.svg"
 
 // ── Anthropic client ──────────────────────────────────────────────────────────
 const client = new Anthropic({
@@ -159,16 +163,6 @@ Case 4 — Edit request:
 ## Replies
 1–2 sentences. State what you did. No preamble, no markdown lists.`
 
-// ── Initial state ─────────────────────────────────────────────────────────────
-const MOCK_TOPIC: ResearchNodeData = {
-  id: "root",
-  text: "AI-Driven Demand Forecasting for Perishable Goods",
-  description:
-    "Develop a machine learning model to forecast demand for perishable goods, minimizing waste while ensuring availability.",
-  color: "#6366f1",
-  isRoot: true,
-}
-
 const nodeTypes = { researchNode: ResearchNode }
 
 interface ChatMessage {
@@ -178,8 +172,19 @@ interface ChatMessage {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export function ResearchPage() {
+  const plannedTopicId = useAppStore((s) => s.plannedTopicId)
+  const plannedTopic = plannedTopicId ? topicById[plannedTopicId] : null
+
+  const rootNodeData: ResearchNodeData = {
+    id: "root",
+    text: plannedTopic?.title ?? "AI-Driven Demand Forecasting for Perishable Goods",
+    description: plannedTopic?.description ?? "Develop a machine learning model to forecast demand for perishable goods, minimizing waste while ensuring availability.",
+    color: "#6366f1",
+    isRoot: true,
+  }
+
   const [nodeDataMap, setNodeDataMap] = useState<Map<string, ResearchNodeData>>(
-    new Map([["root", MOCK_TOPIC]])
+    new Map([["root", rootNodeData]])
   )
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<ResearchNodeData>([])
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([])
@@ -198,6 +203,17 @@ export function ResearchPage() {
   const knownNodeIds = useRef<Set<string>>(new Set(["root"]))
   // Persists ELK-computed positions so re-renders don't reset them to {0,0}
   const positionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+
+  // Reset graph when planned topic changes
+  useEffect(() => {
+    setNodeDataMap(new Map([["root", rootNodeData]]))
+    setRfEdges([])
+    setSelectedNodeId(null)
+    knownNodeIds.current = new Set(["root"])
+    positionsRef.current = new Map()
+    conversationRef.current = []
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plannedTopicId])
 
   const selectNode = useCallback((id: string) => {
     setSelectedNodeId((prev) => (prev === id ? null : id))
@@ -459,7 +475,7 @@ export function ResearchPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen w-screen bg-gray-50">
+    <div className="flex h-full w-full bg-gray-50">
       <div className="flex-1">
         <ReactFlow
           nodes={rfNodes}
@@ -470,8 +486,12 @@ export function ResearchPage() {
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
           fitViewOptions={{ padding: 0.2 }}
+          proOptions={{ hideAttribution: true }}
         >
           <Background />
+          <Panel position="bottom-right">
+            <img src={studyondLogo} alt="Studyond" className="h-6 opacity-60 pointer-events-none" />
+          </Panel>
           <Controls />
         </ReactFlow>
       </div>

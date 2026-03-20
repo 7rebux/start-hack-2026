@@ -10,12 +10,14 @@ import {
 import ReactFlow, {
   Background,
   Controls,
+  Panel,
   useNodesState,
   useEdgesState,
   ConnectionLineType,
   type Node,
 } from "reactflow";
 import { AnimatePresence } from "framer-motion";
+import studyondLogo from "@/assets/studyond.svg";
 import { Bookmark } from "lucide-react";
 import { TopicViewDetailPanel } from "../TopicViewDetailPanel";
 import "reactflow/dist/style.css";
@@ -606,6 +608,7 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             nodeTypes={nodeTypes}
+            proOptions={{ hideAttribution: true }}
             onInit={(instance) => {
               rfInstanceRef.current = instance;
               setRfInstance(instance);
@@ -619,6 +622,9 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
           >
             <Background />
             <Controls />
+            <Panel position="bottom-right">
+              <img src={studyondLogo} alt="Studyond" className="h-6 opacity-60 pointer-events-none" />
+            </Panel>
           </ReactFlow>
         </div>
         <AnimatePresence>

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
-import { X, Building2, Mail, Globe, Briefcase } from 'lucide-react'
+import { X, Building2, Mail, Globe, Briefcase, Map } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAppStore } from '@/store/useAppStore'
 
 interface TopicViewDetailPanelProps {
   node: { type: string; data: any }
@@ -61,9 +62,10 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   )
 }
 
-function TopicDetail({ data }: { data: any }) {
+function TopicDetail({ data, onClose }: { data: any; onClose: () => void }) {
   const isJob = data.type === 'job'
   const showEmployment = data.employment === 'yes' || data.employment === 'open'
+  const { setPlannedTopic, setCurrentPhase } = useAppStore()
 
   return (
     <>
@@ -126,6 +128,20 @@ function TopicDetail({ data }: { data: any }) {
             </div>
           </Section>
         )}
+      </div>
+
+      <div className="pt-4 border-t border-gray-100 mt-4">
+        <button
+          onClick={() => {
+            setPlannedTopic(data.id)
+            setCurrentPhase(3)
+            onClose()
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors py-2.5 text-sm font-medium"
+        >
+          <Map className="size-4" />
+          Research this topic
+        </button>
       </div>
     </>
   )
@@ -405,7 +421,7 @@ export function TopicViewDetailPanel({ node, onClose }: TopicViewDetailPanelProp
       </div>
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        {node.type === 'topicNode' && <TopicDetail data={node.data} />}
+        {node.type === 'topicNode' && <TopicDetail data={node.data} onClose={onClose} />}
         {node.type === 'expertNode' && <ExpertDetail data={node.data} />}
         {node.type === 'supervisorNode' && <SupervisorDetail data={node.data} />}
         {node.type === 'companyNode' && <CompanyDetail data={node.data} />}

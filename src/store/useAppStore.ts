@@ -26,6 +26,7 @@ interface AppState {
   activeTopicId: string | null
   activeSourceId: string | null
   bookmarkedTopicIds: string[]     // ordered — index 0 = highest priority
+  plannedTopicId: string | null
 
   // Compare
   compareTopicIds: [string | null, string | null]
@@ -48,6 +49,7 @@ interface AppState {
   toggleCompare: (topicId: string) => void
   setCurrentPanel: (panel: SidebarPanel) => void
   setCurrentPhase: (phase: 1 | 2 | 3 | 4 | 5 | 6) => void
+  setPlannedTopic: (id: string | null) => void
   setSuggestedFieldIds: (ids: string[]) => void
   setSuggestionsLoading: (v: boolean) => void
 }
@@ -66,6 +68,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeTopicId: null,
   activeSourceId: null,
   bookmarkedTopicIds: [],
+  plannedTopicId: null,
   compareTopicIds: [null, null],
 
   suggestedFieldIds: [],
@@ -168,6 +171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSuggestedFieldIds: (ids) => set({ suggestedFieldIds: ids }),
   setSuggestionsLoading: (v) => set({ suggestionsLoading: v }),
+  setPlannedTopic: (id) => set({ plannedTopicId: id }),
 }))
 
 // Pure derived selector — 3 levels: fields → sources → topics
