@@ -1,11 +1,17 @@
 import { create } from 'zustand'
 
 export type AppView = 'onboarding' | 'graph'
-export type SidebarPanel = 'graph' | 'bookmarks' | 'compare' | 'search'
+export type SidebarPanel =
+  'graph' | 'bookmarks' | 'compare' | 'search' | 'thesis-graph' |
+  'literature' | 'experts' | 'resources' | 'notes' |
+  'outline' | 'editor' | 'citations' | 'ai-assist' |
+  'checklist' | 'formatting' | 'submission' | 'feedback' |
+  'reviews' | 'revisions' | 'publish' | 'archive'
 
 interface AppState {
   // Navigation
   currentView: AppView
+  currentPhase: 1 | 2 | 3 | 4 | 5 | 6
   currentPanel: SidebarPanel
 
   // Onboarding
@@ -24,6 +30,13 @@ interface AppState {
   // Compare
   compareTopicIds: [string | null, string | null]
 
+  // Field suggestions (from Claude)
+  suggestedFieldIds: string[]
+  suggestionsLoading: boolean
+
+  // Thesis graph
+  thesisGraphTopicId: string | null
+
   // Actions
   setUniversityId: (id: string) => void
   setProgramId: (id: string) => void
@@ -37,10 +50,15 @@ interface AppState {
   moveBookmark: (topicId: string, direction: 'up' | 'down') => void
   toggleCompare: (topicId: string) => void
   setCurrentPanel: (panel: SidebarPanel) => void
+  setCurrentPhase: (phase: 1 | 2 | 3 | 4 | 5 | 6) => void
+  setSuggestedFieldIds: (ids: string[]) => void
+  setSuggestionsLoading: (v: boolean) => void
+  setThesisGraphTopicId: (id: string | null) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentView: 'onboarding',
+  currentPhase: 1,
   currentPanel: 'graph',
 
   selectedUniversityId: null,
@@ -54,17 +72,24 @@ export const useAppStore = create<AppState>((set, get) => ({
   bookmarkedTopicIds: [],
   compareTopicIds: [null, null],
 
-  setUniversityId: (id) => set({ selectedUniversityId: id, selectedProgramId: null }),
+  suggestedFieldIds: [],
+  suggestionsLoading: false,
+
+  thesisGraphTopicId: null,
+
+  setUniversityId: (id) => set({ selectedUniversityId: id, selectedProgramId: null, suggestedFieldIds: [], suggestionsLoading: false }),
 
   setProgramId: (id) => set({ selectedProgramId: id }),
 
   enterGraph: () =>
     set({
       currentView: 'graph',
+      currentPhase: 1,
       currentPanel: 'graph',
       selectedFieldIds: [],
       selectedSourceIds: [],
       activeTopicId: null,
+      suggestionsLoading: false,
     }),
 
   goToOnboarding: () => set({ currentView: 'onboarding' }),
@@ -128,20 +153,28 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleCompare: (topicId) => {
     const [a, b] = get().compareTopicIds
     if (a === topicId) {
-      // Remove from slot A, shift B up
       set({ compareTopicIds: [b, null] })
     } else if (b === topicId) {
-      // Remove from slot B
       set({ compareTopicIds: [a, null] })
     } else if (!a) {
       set({ compareTopicIds: [topicId, b] })
     } else {
-      // Slot A occupied — fill / replace slot B
       set({ compareTopicIds: [a, topicId] })
     }
   },
 
   setCurrentPanel: (panel) => set({ currentPanel: panel }),
+
+  setCurrentPhase: (phase) => {
+    const defaultPanels: Record<number, SidebarPanel> = {
+      1: 'graph', 2: 'thesis-graph', 3: 'outline', 4: 'checklist', 5: 'reviews',
+    }
+    set({ currentPhase: phase, currentPanel: defaultPanels[phase] })
+  },
+
+  setSuggestedFieldIds: (ids) => set({ suggestedFieldIds: ids }),
+  setSuggestionsLoading: (v) => set({ suggestionsLoading: v }),
+  setThesisGraphTopicId: (id) => set({ thesisGraphTopicId: id }),
 }))
 
 // Pure derived selector — 3 levels: fields → sources → topics

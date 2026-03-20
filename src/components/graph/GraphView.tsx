@@ -10,6 +10,7 @@ import {
   type Node,
   type Edge,
   type NodeMouseHandler,
+  type NodeChange,
 } from '@xyflow/react'
 
 import { useAppStore, deriveGraphLevel } from '@/store/useAppStore'
@@ -17,6 +18,7 @@ import { ACADEMIC, INDUSTRY } from './colors'
 
 import {
   fields,
+  topics,
   universitiesForFields,
   companiesForFields,
   topicsForSourcesAndFields,
@@ -47,7 +49,7 @@ const edgeTypes = {
 // ─── Layout constants ────────────────────────────────────────────────────────
 const R1 = 330   // fields ring radius
 const R2 = 550   // sources ring radius (universities + companies)
-const R3 = 750  // topics ring radius (close to sources)
+const R3 = 750   // topics ring radius
 
 const FIELD_START_DEG  = -90  // fields fan starts from top
 const TOPIC_FAN_PER_SOURCE = 7   // degrees per topic in a source's fan
@@ -75,21 +77,28 @@ function spreadAngles(count: number, centerDeg: number, maxSpreadDeg: number): n
 interface GraphState {
   selectedFieldIds: string[]
   selectedSourceIds: string[]
+  suggestedFieldIds: string[]
   graphLevel: number
+  savedPositions: Map<string, { x: number; y: number }>
 }
 
 function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] } {
-  const { selectedFieldIds, selectedSourceIds, graphLevel } = state
+  const { selectedFieldIds, selectedSourceIds, suggestedFieldIds, graphLevel, savedPositions } = state
   const nodes: Node[] = []
   const edges: Edge[] = []
 
   const atFieldMax = selectedFieldIds.length >= 3
+  const hasSuggestions = suggestedFieldIds.length > 0
+
+  function pos(id: string, defaultPos: { x: number; y: number }) {
+    return savedPositions.get(id) ?? defaultPos
+  }
 
   // ── Center node ─────────────────────────────────────────────────────────────
   nodes.push({
     id: 'center',
     type: 'center',
-    position: { x: -80, y: -30 },
+    position: pos('center', { x: -80, y: -30 }),
     data: {},
     draggable: true,
   })
@@ -98,14 +107,22 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
   const fieldCount = fields.length
   fields.forEach((field, i) => {
     const angleDeg = FIELD_START_DEG + i * (360 / fieldCount)
-    const pos = ringPosition(R1, angleDeg)
+    const defaultPos = ringPosition(R1, angleDeg)
     const isFieldSelected = selectedFieldIds.includes(field.id)
+    const isSuggested = suggestedFieldIds.includes(field.id)
+    const nodeId = `field-${field.id}`
 
     nodes.push({
-      id: `field-${field.id}`,
+      id: nodeId,
       type: 'field',
-      position: { x: pos.x - 65, y: pos.y - 18 },
-      data: { fieldId: field.id, label: field.name, atMax: atFieldMax },
+      position: pos(nodeId, { x: defaultPos.x - 65, y: defaultPos.y - 18 }),
+      data: {
+        fieldId: field.id,
+        label: field.name,
+        atMax: atFieldMax,
+        suggested: isSuggested,
+        hasSuggestions,
+      },
       draggable: true,
     })
 
@@ -123,38 +140,66 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
   // ── Ring 2: Sources — universities LEFT (180°), companies RIGHT (0°) ──────────
   const academicSources = universitiesForFields(selectedFieldIds).slice(0, 12)
   const industrySources = companiesForFields(selectedFieldIds).slice(0, 12)
-  // Fan each group on its own hemisphere (max 150° each side)
   const academicAngles = spreadAngles(academicSources.length, 180, 150)
   const industryAngles = spreadAngles(industrySources.length, 0, 150)
 
-  // Combine with angles baked in for easy lookup later
   const allSources: Array<{ id: string; angle: number; isAcademic: boolean }> = [
     ...academicSources.map((s, i) => ({ id: s.id, angle: academicAngles[i], isAcademic: true })),
     ...industrySources.map((s, i) => ({ id: s.id, angle: industryAngles[i], isAcademic: false })),
   ]
 
   allSources.forEach(({ id: srcId, angle, isAcademic }) => {
-    const src = { id: srcId }
-    const uni = isAcademic ? universityById[src.id] : null
-    const co = isAcademic ? null : companyById[src.id]
-    const label = uni?.name ?? co?.name ?? src.id
+    const uni = isAcademic ? universityById[srcId] : null
+    const co = isAcademic ? null : companyById[srcId]
+    const label = uni?.name ?? co?.name ?? srcId
     const sublabel = uni?.domains.slice(0, 2).join(', ') ?? co?.domains.slice(0, 2).join(', ') ?? ''
-    const pos = ringPosition(R2, angle)
+    const defaultPos = ringPosition(R2, angle)
+    const nodeId = `source-${srcId}`
+
     nodes.push({
-      id: `source-${src.id}`,
+      id: nodeId,
       type: 'source',
-      position: { x: pos.x - 80, y: pos.y - 28 },
-      data: { sourceId: src.id, label, sublabel, isAcademic, atMax: false },
+      position: pos(nodeId, { x: defaultPos.x - 80, y: defaultPos.y - 28 }),
+      data: { sourceId: srcId, label, sublabel, isAcademic, atMax: false },
       draggable: true,
     })
-    // Edge: center → source (dimmed until selected)
-    edges.push({
-      id: `e-center-source-${src.id}`,
-      source: 'center',
-      target: `source-${src.id}`,
-      type: 'floating',
-      data: { selected: selectedSourceIds.includes(src.id), dimmed: !selectedSourceIds.includes(src.id), isAcademic },
-    } as Edge)
+
+    // Edge: source → relevant field nodes (not center)
+    const relevantFields = selectedFieldIds.filter(fieldId =>
+      topics.some(t =>
+        t.fieldIds.includes(fieldId) &&
+        (isAcademic ? t.universityId === srcId : t.companyId === srcId)
+      )
+    )
+
+    if (relevantFields.length > 0) {
+      relevantFields.forEach(fieldId => {
+        edges.push({
+          id: `e-field-source-${fieldId}-${srcId}`,
+          source: `field-${fieldId}`,
+          target: nodeId,
+          type: 'floating',
+          data: {
+            selected: selectedSourceIds.includes(srcId),
+            dimmed: !selectedSourceIds.includes(srcId),
+            isAcademic,
+          },
+        } as Edge)
+      })
+    } else {
+      // Fallback: connect to center if no field matches found
+      edges.push({
+        id: `e-center-source-${srcId}`,
+        source: 'center',
+        target: nodeId,
+        type: 'floating',
+        data: {
+          selected: selectedSourceIds.includes(srcId),
+          dimmed: !selectedSourceIds.includes(srcId),
+          isAcademic,
+        },
+      } as Edge)
+    }
   })
 
   if (graphLevel < 3) return { nodes, edges }
@@ -186,18 +231,20 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
           ? `${supervisorById[topic.supervisorIds[0]]?.title ?? ''} ${supervisorById[topic.supervisorIds[0]]?.lastName ?? ''}`.trim()
           : (topic.universityId ? universityById[topic.universityId]?.name ?? '' : '')
       const degreeTags = topic.degrees.map(degreeLabel).join(' / ')
-      const pos = ringPosition(R3, tAngles[j])
+      const defaultPos = ringPosition(R3, tAngles[j])
+      const nodeId = `topic-${topic.id}`
+
       nodes.push({
-        id: `topic-${topic.id}`,
+        id: nodeId,
         type: 'topic',
-        position: { x: pos.x - 85, y: pos.y - 35 },
+        position: pos(nodeId, { x: defaultPos.x - 85, y: defaultPos.y - 35 }),
         data: { topicId: topic.id, label: topic.title, sourceName, degreeTags, isAcademic: isTopicAcademic },
         draggable: true,
       })
       edges.push({
         id: `e-source-topic-${src.id}-${topic.id}`,
         source: `source-${src.id}`,
-        target: `topic-${topic.id}`,
+        target: nodeId,
         type: 'floating',
         data: { selected: true, dimmed: false, isAcademic: isTopicAcademic },
       } as Edge)
@@ -216,15 +263,30 @@ function GraphCanvas() {
   const graphLevel = deriveGraphLevel(store)
   const prevLevel = useRef(graphLevel)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  // Persist dragged positions across rebuilds
+  const nodePositions = useRef<Map<string, { x: number; y: number }>>(new Map())
+
+  const [nodes, setNodes, onNodesChangeRaw] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+
+  // Wrap onNodesChange to track position updates
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    for (const change of changes) {
+      if (change.type === 'position' && change.position) {
+        nodePositions.current.set(change.id, change.position)
+      }
+    }
+    onNodesChangeRaw(changes)
+  }, [onNodesChangeRaw])
 
   // Rebuild graph whenever relevant state changes
   useEffect(() => {
     const { nodes: newNodes, edges: newEdges } = buildGraphElements({
       selectedFieldIds: store.selectedFieldIds,
       selectedSourceIds: store.selectedSourceIds,
+      suggestedFieldIds: store.suggestedFieldIds,
       graphLevel,
+      savedPositions: nodePositions.current,
     })
     setNodes(newNodes)
     setEdges(newEdges)
@@ -237,6 +299,7 @@ function GraphCanvas() {
   }, [
     store.selectedFieldIds,
     store.selectedSourceIds,
+    store.suggestedFieldIds,
     graphLevel,
     setNodes,
     setEdges,

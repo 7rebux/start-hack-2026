@@ -1,10 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, MapPin } from 'lucide-react'
+import { ArrowRight, MapPin, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { useAppStore } from '@/store/useAppStore'
-import { universities, programsForUniversity } from '@/data/index'
+import { universities, programsForUniversity, universityById, fields, degreeLabel } from '@/data/index'
+import { suggestFields } from '@/lib/suggestFields'
 import studyondLogo from '@/assets/studyond.svg'
 import heroBg from '@/assets/hero.png'
 
@@ -15,6 +16,9 @@ export function OnboardingPage() {
     setUniversityId,
     setProgramId,
     enterGraph,
+    suggestionsLoading,
+    setSuggestedFieldIds,
+    setSuggestionsLoading,
   } = useAppStore()
 
   const filteredPrograms = selectedUniversityId
@@ -22,6 +26,31 @@ export function OnboardingPage() {
     : []
 
   const canProceed = !!selectedUniversityId && !!selectedProgramId
+
+  async function handleProgramChange(programId: string) {
+    setProgramId(programId)
+    if (!selectedUniversityId) return
+
+    const program = filteredPrograms.find(p => p.id === programId)
+    if (!program) return
+
+    setSuggestionsLoading(true)
+    try {
+      const universityName = universityById[selectedUniversityId]?.name ?? selectedUniversityId
+      const ids = await suggestFields(
+        program.name,
+        degreeLabel(program.degree),
+        universityName,
+        fields.map(f => f.name),
+        fields.map(f => f.id),
+      )
+      setSuggestedFieldIds(ids)
+    } catch {
+      setSuggestedFieldIds([])
+    } finally {
+      setSuggestionsLoading(false)
+    }
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6">
@@ -98,12 +127,15 @@ export function OnboardingPage() {
                 transition={{ duration: 0.25 }}
                 className="space-y-2"
               >
-                <Label htmlFor="program" className="ds-label">
+                <Label htmlFor="program" className="ds-label flex items-center gap-2">
                   Your study programme
+                  {suggestionsLoading && (
+                    <Sparkles className="size-3.5 animate-pulse text-amber-500" />
+                  )}
                 </Label>
                 <Select
                   value={selectedProgramId ?? ''}
-                  onValueChange={setProgramId}
+                  onValueChange={handleProgramChange}
                 >
                   <SelectTrigger id="program" className="h-11 w-full">
                     <SelectValue placeholder="Select your programme…" />

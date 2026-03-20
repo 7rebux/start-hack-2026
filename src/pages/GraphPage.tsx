@@ -2,13 +2,18 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Bookmark, X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { AppSidebar } from '@/components/AppSidebar'
+import { PhasesBar } from '@/components/PhasesBar'
 import { GraphView } from '@/components/graph/GraphView'
 import { TopicDetailPanel } from '@/components/TopicDetailPanel'
 import { SourceDetailPanel } from '@/components/SourceDetailPanel'
 import { ComparePage } from '@/pages/ComparePage'
 import { SearchPage } from '@/pages/SearchPage'
+import { ThesisGraphPage } from '@/pages/ThesisGraphPage'
 import { topicById, companyById, supervisorById, fieldById } from '@/data/index'
+import { PHASES } from '@/data/phases'
 import { Badge } from '@/components/ui/badge'
+
+const PHASE1_PANELS = new Set(['graph', 'bookmarks', 'thesis-graph', 'compare', 'search'])
 
 function BookmarksView() {
   const { bookmarkedTopicIds, setActiveTopic, toggleBookmark } = useAppStore()
@@ -62,12 +67,12 @@ function BookmarksView() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {topicFields.slice(0, 3).map(f => (
-                      <Badge key={f.id} variant="secondary" className="ds-caption">{f.name}</Badge>
+                      <Badge key={f!.id} variant="secondary" className="ds-caption">{f!.name}</Badge>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => setActiveTopic(topicId)}
                     className="ds-caption text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-secondary"
@@ -92,8 +97,22 @@ function BookmarksView() {
   )
 }
 
+function PlaceholderView({ label }: { label: string }) {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <div className="text-center space-y-2">
+        <p className="ds-label text-muted-foreground">{label}</p>
+        <p className="ds-caption text-muted-foreground/60">Coming soon</p>
+      </div>
+    </div>
+  )
+}
+
 export function GraphPage() {
-  const { currentPanel, activeTopicId, activeSourceId } = useAppStore()
+  const { currentPanel, currentPhase, activeTopicId, activeSourceId } = useAppStore()
+
+  const phase = PHASES.find(p => p.id === currentPhase) ?? PHASES[0]
+  const isPhase1Panel = PHASE1_PANELS.has(currentPanel)
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -101,7 +120,11 @@ export function GraphPage() {
 
       {/* Main content area */}
       <div className="relative flex-1 overflow-hidden">
+        {/* Floating phases bar */}
+        <PhasesBar />
+
         <AnimatePresence mode="wait">
+          {/* Phase 1 — Find */}
           {currentPanel === 'graph' && (
             <motion.div
               key="graph"
@@ -124,6 +147,18 @@ export function GraphPage() {
               className="h-full w-full"
             >
               <BookmarksView />
+            </motion.div>
+          )}
+          {currentPanel === 'thesis-graph' && (
+            <motion.div
+              key="thesis-graph"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full"
+            >
+              <ThesisGraphPage />
             </motion.div>
           )}
           {currentPanel === 'compare' && (
@@ -150,10 +185,66 @@ export function GraphPage() {
               <SearchPage />
             </motion.div>
           )}
+
+          {/* Phase 2 — Research */}
+          {!isPhase1Panel && currentPhase === 2 && (
+            <motion.div
+              key={currentPanel}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full pt-16"
+            >
+              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
+            </motion.div>
+          )}
+
+          {/* Phase 3 — Write */}
+          {currentPhase === 3 && (
+            <motion.div
+              key={currentPanel}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full pt-16"
+            >
+              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
+            </motion.div>
+          )}
+
+          {/* Phase 4 — Submit */}
+          {currentPhase === 4 && (
+            <motion.div
+              key={currentPanel}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full pt-16"
+            >
+              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
+            </motion.div>
+          )}
+
+          {/* Phase 5 — Publish */}
+          {currentPhase === 5 && (
+            <motion.div
+              key={currentPanel}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full w-full pt-16"
+            >
+              <PlaceholderView label={phase.items.find(i => i.panel === currentPanel)?.label ?? currentPanel} />
+            </motion.div>
+          )}
         </AnimatePresence>
       </div>
 
-      {/* Detail panels — only one visible at a time (setActiveTopic clears activeSourceId and vice versa) */}
+      {/* Detail panels — only one visible at a time */}
       <AnimatePresence>
         {activeTopicId && <TopicDetailPanel key={`topic-${activeTopicId}`} />}
         {activeSourceId && <SourceDetailPanel key={`source-${activeSourceId}`} />}

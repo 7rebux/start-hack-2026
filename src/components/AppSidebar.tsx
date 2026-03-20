@@ -1,12 +1,14 @@
-import { Network, Bookmark, Scale, Search } from 'lucide-react'
+import { House, MessageCircle, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/useAppStore'
 import { universityById, programsForUniversity } from '@/data/index'
+import { PHASES } from '@/data/phases'
 import studyondLogo from '@/assets/studyond.svg'
 
 export function AppSidebar() {
   const {
     currentPanel,
+    currentPhase,
     setCurrentPanel,
     bookmarkedTopicIds,
     selectedUniversityId,
@@ -19,6 +21,8 @@ export function AppSidebar() {
     ? programsForUniversity(selectedUniversityId).find(p => p.id === selectedProgramId)
     : null
 
+  const phase = PHASES.find(p => p.id === currentPhase) ?? PHASES[0]
+
   return (
     <aside className="flex w-56 flex-col border-r border-border bg-background h-full flex-shrink-0">
       {/* Logo */}
@@ -27,67 +31,67 @@ export function AppSidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col gap-1 p-3 flex-1">
+      <nav className="flex flex-col gap-1 p-3 flex-1 overflow-y-auto">
+        {/* Global items */}
         <button
-          onClick={() => setCurrentPanel('graph')}
-          className={cn(
-            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
-            'ds-label',
-            currentPanel === 'graph'
-              ? 'bg-secondary text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-          )}
+          onClick={goToOnboarding}
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ds-label text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
         >
-          <Network className="size-4 flex-shrink-0" />
-          Explore Graph
+          <House className="size-4 shrink-0" />
+          Home
+        </button>
+        <button
+          disabled
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left ds-label text-muted-foreground opacity-40 cursor-not-allowed"
+        >
+          <MessageCircle className="size-4 shrink-0" />
+          Messages
+        </button>
+        <button
+          disabled
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left ds-label text-muted-foreground opacity-40 cursor-not-allowed"
+        >
+          <FileText className="size-4 shrink-0" />
+          My Thesis
         </button>
 
-        <button
-          onClick={() => setCurrentPanel('bookmarks')}
-          className={cn(
-            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
-            'ds-label',
-            currentPanel === 'bookmarks'
-              ? 'bg-secondary text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-          )}
-        >
-          <Bookmark className="size-4 flex-shrink-0" />
-          Bookmarks
-          {bookmarkedTopicIds.length > 0 && (
-            <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-foreground text-background ds-caption font-medium">
-              {bookmarkedTopicIds.length}
-            </span>
-          )}
-        </button>
+        {/* Divider + phase label */}
+        <div className="my-2 border-t border-border" />
+        <p className="px-3 mb-1 ds-caption font-semibold uppercase tracking-wide" style={{ color: phase.color }}>
+          {phase.name}
+        </p>
 
-        <button
-          onClick={() => setCurrentPanel('compare')}
-          className={cn(
-            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
-            'ds-label',
-            currentPanel === 'compare'
-              ? 'bg-secondary text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-          )}
-        >
-          <Scale className="size-4 flex-shrink-0" />
-          Compare
-        </button>
-
-        <button
-          onClick={() => setCurrentPanel('search')}
-          className={cn(
-            'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors',
-            'ds-label',
-            currentPanel === 'search'
-              ? 'bg-secondary text-foreground font-medium'
-              : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
-          )}
-        >
-          <Search className="size-4 flex-shrink-0" />
-          Search
-        </button>
+        {/* Phase items */}
+        {phase.items.map(item => {
+          const isActive = currentPanel === item.panel
+          const Icon = item.icon
+          return (
+            <button
+              key={item.panel}
+              onClick={() => setCurrentPanel(item.panel)}
+              className={cn(
+                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ds-label',
+                isActive ? 'font-medium' : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground'
+              )}
+              style={isActive ? {
+                backgroundColor: phase.lightBg,
+                color: phase.color,
+                borderLeft: `3px solid ${phase.color}`,
+              } : {}}
+            >
+              <Icon className="size-4 shrink-0" />
+              {item.label}
+              {item.panel === 'bookmarks' && bookmarkedTopicIds.length > 0 && (
+                <span
+                  className="ml-auto flex size-5 items-center justify-center rounded-full ds-caption font-medium text-white"
+                  style={{ backgroundColor: phase.color }}
+                >
+                  {bookmarkedTopicIds.length}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </nav>
 
       {/* User info at bottom */}
