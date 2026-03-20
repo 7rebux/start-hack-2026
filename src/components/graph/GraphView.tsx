@@ -164,41 +164,34 @@ function buildGraphElements(state: GraphState): { nodes: Node[]; edges: Edge[] }
       draggable: true,
     })
 
-    // Edge: source → relevant field nodes (not center)
-    const relevantFields = selectedFieldIds.filter(fieldId =>
-      topics.some(t =>
-        t.fieldIds.includes(fieldId) &&
-        (isAcademic ? t.universityId === srcId : t.companyId === srcId)
+    // Only draw edges for selected sources to reduce clutter
+    if (selectedSourceIds.includes(srcId)) {
+      const relevantFields = selectedFieldIds.filter(fieldId =>
+        topics.some(t =>
+          t.fieldIds.includes(fieldId) &&
+          (isAcademic ? t.universityId === srcId : t.companyId === srcId)
+        )
       )
-    )
 
-    if (relevantFields.length > 0) {
-      relevantFields.forEach(fieldId => {
+      if (relevantFields.length > 0) {
+        relevantFields.forEach(fieldId => {
+          edges.push({
+            id: `e-field-source-${fieldId}-${srcId}`,
+            source: `field-${fieldId}`,
+            target: nodeId,
+            type: 'floating',
+            data: { selected: true, dimmed: false, isAcademic },
+          } as Edge)
+        })
+      } else {
         edges.push({
-          id: `e-field-source-${fieldId}-${srcId}`,
-          source: `field-${fieldId}`,
+          id: `e-center-source-${srcId}`,
+          source: 'center',
           target: nodeId,
           type: 'floating',
-          data: {
-            selected: selectedSourceIds.includes(srcId),
-            dimmed: !selectedSourceIds.includes(srcId),
-            isAcademic,
-          },
+          data: { selected: true, dimmed: false, isAcademic },
         } as Edge)
-      })
-    } else {
-      // Fallback: connect to center if no field matches found
-      edges.push({
-        id: `e-center-source-${srcId}`,
-        source: 'center',
-        target: nodeId,
-        type: 'floating',
-        data: {
-          selected: selectedSourceIds.includes(srcId),
-          dimmed: !selectedSourceIds.includes(srcId),
-          isAcademic,
-        },
-      } as Edge)
+      }
     }
   })
 
