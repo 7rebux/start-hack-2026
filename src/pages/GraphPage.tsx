@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bookmark, X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { AppSidebar } from '@/components/AppSidebar'
 import { PhasesBar } from '@/components/PhasesBar'
 import { GraphView } from '@/components/graph/GraphView'
 import { TopicDetailPanel } from '@/components/TopicDetailPanel'
@@ -116,8 +115,6 @@ export function GraphPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <AppSidebar />
-
       {/* Main content area */}
       <div className="relative flex-1 overflow-hidden">
         {/* Floating phases bar */}
