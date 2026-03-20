@@ -312,26 +312,24 @@ function buildGraph(topic: Topic): {
 }
 
 // ─── Multi-graph builder ──────────────────────────────────────────────────────
-// Each topic gets a completely independent subtree by prefixing every child
-// node ID with `${topicId}__`.  This prevents shared entities (same university,
-// supervisor, etc.) from being merged into a single node that visually connects
-// multiple topic trees.
+// Child nodes use their original IDs so shared entities (same university,
+// supervisor, etc.) across multiple topic trees are merged into one node.
 
 function buildMultiGraph(topicIds: string[]) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allNodes: any[] = [];
+  const allNodesMap = new Map<string, any>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allEdges: any[] = [];
 
-  // prefixedNodeId -> topicId  (direct topic children only)
-  const nodeParentTopics = new Map<string, string>();
-  // prefixedProjectId -> topicId
+  // nodeId -> Set<topicId>  (direct topic children; shared nodes belong to multiple topics)
+  const nodeParentTopics = new Map<string, Set<string>>();
+  // projectId -> topicId
   const projectToTopic = new Map<string, string>();
-  // prefixedNodeId -> prefixedProjectId  (project-specific nodes)
+  // nodeId -> projectId  (project-specific nodes)
   const projectNodeMap = new Map<string, string>();
-  // prefixed edge ids belonging to projects
+  // edge ids belonging to projects
   const projectEdgeSet = new Set<string>();
-  // topicId -> set of prefixed edge ids (topic->direct-child edges)
+  // topicId -> set of edge ids (topic->direct-child edges)
   const topicEdgeSets = new Map<string, Set<string>>();
 
   for (const topicId of topicIds) {
@@ -340,50 +338,49 @@ function buildMultiGraph(topicIds: string[]) {
 
     const result = buildGraph(topic);
 
-    // Prefix every node id that is NOT the topic root itself
-    const p = (id: string) => (id === topicId ? id : `${topicId}__${id}`);
-
+    // Add nodes by original ID, deduplicating shared entities
     for (const node of result.nodes) {
-      allNodes.push({ ...node, id: p(node.id) });
+      if (!allNodesMap.has(node.id)) {
+        allNodesMap.set(node.id, node);
+      }
     }
 
+    // Prefix edge IDs only (to keep them unique), source/target use original IDs
     for (const edge of result.edges) {
-      allEdges.push({
-        ...edge,
-        id: `${topicId}__${edge.id}`,
-        source: p(edge.source),
-        target: p(edge.target),
-      });
+      const prefixedEdgeId = `${topicId}__${edge.id}`;
+      allEdges.push({ ...edge, id: prefixedEdgeId });
+      if (result.projectEdgeSet.has(edge.id)) {
+        projectEdgeSet.add(prefixedEdgeId);
+      }
     }
 
-    // Direct topic children
+    // Direct topic children (node may belong to multiple topics)
     for (const childId of result.topicChildIds) {
-      nodeParentTopics.set(p(childId), topicId);
+      if (!nodeParentTopics.has(childId)) {
+        nodeParentTopics.set(childId, new Set());
+      }
+      nodeParentTopics.get(childId)!.add(topicId);
     }
 
-    // Projects → topic mapping (using prefixed project IDs)
+    // Projects → topic mapping
     for (const [nodeId, projId] of result.projectNodeMap) {
-      projectNodeMap.set(p(nodeId), p(projId));
-    }
-    for (const edgeId of result.projectEdgeSet) {
-      projectEdgeSet.add(`${topicId}__${edgeId}`);
+      projectNodeMap.set(nodeId, projId);
     }
 
-    const prefixedTopicEdgeSet = new Set<string>();
+    const topicEdgeSet = new Set<string>();
     for (const edgeId of result.topicEdgeSet) {
-      prefixedTopicEdgeSet.add(`${topicId}__${edgeId}`);
+      topicEdgeSet.add(`${topicId}__${edgeId}`);
     }
-    topicEdgeSets.set(topicId, prefixedTopicEdgeSet);
+    topicEdgeSets.set(topicId, topicEdgeSet);
 
-    // Build projectToTopic from projectsData (prefixed project ids)
-    const projects = (projectsData as Project[]).filter((p2) => p2.topicId === topicId);
-    for (const project of projects) {
-      projectToTopic.set(p(project.id), topicId);
+    // Build projectToTopic from projectsData
+    for (const project of (projectsData as Project[]).filter((p) => p.topicId === topicId)) {
+      projectToTopic.set(project.id, topicId);
     }
   }
 
   return {
-    nodes: allNodes,
+    nodes: Array.from(allNodesMap.values()),
     edges: allEdges,
     nodeParentTopics,
     projectToTopic,
@@ -486,10 +483,10 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
         };
       }
 
-      // Direct topic children (each prefixed node belongs to exactly one topic)
-      const parentTopicId = nodeParentTopics.get(node.id);
-      if (parentTopicId !== undefined) {
-        return { ...node, hidden: !expandedTopics.has(parentTopicId) };
+      // Direct topic children (a shared node is visible if any of its parent topics is expanded)
+      const parentTopicIds = nodeParentTopics.get(node.id);
+      if (parentTopicIds !== undefined) {
+        return { ...node, hidden: ![...parentTopicIds].some((id) => expandedTopics.has(id)) };
       }
 
       // Project children
@@ -567,7 +564,7 @@ export function MultiTopicFlow({ topicIds }: { topicIds: string[] }) {
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const ownerTopic = (nodeId: string): string | undefined =>
-            nodeParentTopics.get(nodeId) ??
+            [...(nodeParentTopics.get(nodeId) ?? [])].at(0) ??
             projectToTopic.get(nodeId) ??
             projectToTopic.get(projectNodeMap.get(nodeId) ?? "");
 
